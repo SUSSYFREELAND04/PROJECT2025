@@ -1,0 +1,34 @@
+# Microsoft 365 Sign-in Portal
+# Robots.txt
+
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://microsoft365-signin.netlify.app/sitemap.xml
+
+# Microsoft 365 specific paths
+Allow: /login
+Allow: /auth
+Allow: /oauth
+Allow: /signin
+
+# Disallow sensitive paths
+Disallow: /.netlify/
+Disallow: /functions/
+Disallow: /api/
+Disallow: /admin/
+Disallow: /debug/
+
+# Allow Microsoft bots
+User-agent: msnbot
+Allow: /
+
+User-agent: bingbot
+Allow: /
+
+# Security
+Disallow: /config/
+Disallow: /env/
+Disallow: /.env
+Disallow: /secrets/

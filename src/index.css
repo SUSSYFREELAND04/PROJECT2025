@@ -1,0 +1,160 @@
+@import url('https://fonts.googleapis.com/css2?family=Segoe+UI:wght@300;400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Microsoft 365 Fluent 2025 Custom Styles */
+
+:root {
+  --ms-accent: #2563eb;
+  --ms-accent-hover: #1d4ed8;
+  --ms-accent-light: #e0edff;
+  --ms-bg: #f3f3f3;
+  --ms-bg-card: #ffffff;
+  --ms-border: #e5e7eb;
+  --ms-shadow: 0 4px 24px 0 rgba(36, 70, 185, 0.06);
+}
+
+body {
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', 'Helvetica Neue', sans-serif;
+  background: var(--ms-bg);
+  color: #1a1a1a;
+  min-height: 100vh;
+  overflow-x: hidden;
+  line-height: 1.7;
+  font-size: 17px;
+  letter-spacing: 0.01em;
+  transition: background 0.2s;
+}
+
+/* Main container */
+#root {
+  min-height: 100vh;
+  background: none;
+  position: relative;
+}
+
+/* Card style */
+.card-microsoft {
+  background: var(--ms-bg-card);
+  border-radius: 1.5rem;
+  box-shadow: var(--ms-shadow);
+  border: 1px solid var(--ms-border);
+  padding: 2rem;
+}
+
+/* Input style */
+.input-microsoft {
+  background: #fff;
+  border: 1.5px solid var(--ms-border);
+  border-radius: 1rem;
+  color: #222;
+  padding: 14px 20px;
+  font-size: 17px;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+
+.input-microsoft:focus {
+  border-color: var(--ms-accent);
+  box-shadow: 0 0 0 3px var(--ms-accent-light);
+  outline: none;
+}
+
+.input-microsoft::placeholder {
+  color: #9ca3af;
+}
+
+/* Button style */
+.btn-microsoft {
+  background: var(--ms-accent);
+  color: #fff;
+  border: none;
+  border-radius: 1rem;
+  padding: 14px 32px;
+  font-weight: 600;
+  font-size: 17px;
+  box-shadow: var(--ms-shadow);
+  transition: background 0.18s, transform 0.08s;
+}
+
+.btn-microsoft:hover, .btn-microsoft:focus {
+  background: var(--ms-accent-hover);
+  transform: translateY(-2px) scale(1.025);
+}
+
+.btn-microsoft:active {
+  background: var(--ms-accent);
+  transform: scale(1);
+}
+
+.btn-microsoft:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Shadows and subtle elevation for surfaces */
+.surface-microsoft {
+  background: var(--ms-bg-card);
+  border-radius: 1.5rem;
+  box-shadow: var(--ms-shadow);
+  border: 1px solid var(--ms-border);
+}
+
+/* Avatar/Icon container */
+.avatar-microsoft {
+  background: var(--ms-accent-light);
+  border-radius: 9999px;
+  padding: 0.8rem;
+  box-shadow: 0 2px 12px 0 rgba(36, 70, 185, 0.05);
+}
+
+/* Focus ring for accessibility */
+.focus-ring:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ms-accent-light);
+}
+
+/* Scrollbar for consistency */
+::-webkit-scrollbar {
+  width: 10px;
+  background: var(--ms-bg-card);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--ms-accent-light);
+  border-radius: 7px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ms-accent);
+}
+
+/* Animations are subtle or removed for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Responsive for mobile */
+@media (max-width: 768px) {
+  body {
+    font-size: 15px;
+  }
+  .card-microsoft {
+    padding: 1rem;
+    border-radius: 1rem;
+  }
+}
+
+/* Print styles */
+@media print {
+  body {
+    background: white;
+    color: black;
+  }
+  .card-microsoft {
+    background: white;
+    border: 1px solid black;
+    box-shadow: none;
+  }
+}
