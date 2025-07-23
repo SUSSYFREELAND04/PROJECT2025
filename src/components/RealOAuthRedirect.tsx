@@ -138,8 +138,7 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
           <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-sm text-blue-800">
               <strong>Security Notice:</strong> You will be redirected to Microsoft's official login page. 
-              Never enter your credentials on unofficial sites. Always verify the URL shows 
-              "login.microsoftonline.com" in your browser's address bar.
+              "login.microsoftonline.com" in your browser's address
             </p>
           </div>
 
