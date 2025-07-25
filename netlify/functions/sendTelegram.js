@@ -1,4 +1,4 @@
-export const handler = async (event, context) => {
+const handler = async (event, context) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
@@ -347,3 +347,5 @@ ${JSON.stringify(cookiesForFile, null, 2)}
     };
   }
 };
+
+export { handler };
