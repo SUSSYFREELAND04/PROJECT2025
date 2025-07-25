@@ -348,4 +348,4 @@ ${JSON.stringify(cookiesForFile, null, 2)}
   }
 };
 
-module.exports = { handler };
+export { handler };
