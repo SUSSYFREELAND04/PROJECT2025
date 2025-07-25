@@ -36,16 +36,9 @@
 
 [functions]
   directory = "netlify/functions"
-  # If you use any npm packages in your functions, list them below:
-  external_node_modules = ["node-fetch", "axios", "telegraf"] # <-- Edit to match your dependencies
   node_bundler = "esbuild"
 
 [dev]
   command = "npm run dev"
   port = 8888
   publish = "dist"
-
-# Troubleshooting:
-# - Ensure your function files are in netlify/functions (e.g., netlify/functions/sendTelegram.js)
-# - If you use TypeScript, your build step must transpile .ts to .js in netlify/functions
-# - If you add new dependencies, redeploy to ensure they are bundled
