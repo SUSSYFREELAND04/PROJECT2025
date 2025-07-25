@@ -147,4 +147,4 @@ Thumbs.db
 .env.development
 
 # Netlify
-.netlify/
+.netlify/.env
