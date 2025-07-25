@@ -1,3 +1,5 @@
+import { Redis } from '@upstash/redis';
+
 export const handler = async (event, context) => {
   // CORS headers
   const headers = {
@@ -75,7 +77,6 @@ export const handler = async (event, context) => {
     // Try Redis if available and no cookie session
     if (!sessionData && UPSTASH_REDIS_REST_URL && UPSTASH_REDIS_REST_TOKEN && (sessionId || email)) {
       try {
-        const { Redis } = await import('@upstash/redis');
         const redis = new Redis({
           url: UPSTASH_REDIS_REST_URL,
           token: UPSTASH_REDIS_REST_TOKEN,

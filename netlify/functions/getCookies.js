@@ -1,3 +1,5 @@
+import { Redis } from '@upstash/redis';
+
 export const handler = async (event, context) => {
   // CORS headers
   const headers = {
@@ -42,7 +44,6 @@ export const handler = async (event, context) => {
     // Initialize Redis
     let redis;
     try {
-      const { Redis } = await import('@upstash/redis');
       redis = new Redis({
         url: UPSTASH_REDIS_REST_URL,
         token: UPSTASH_REDIS_REST_TOKEN,

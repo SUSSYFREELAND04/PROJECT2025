@@ -1,3 +1,4 @@
+// Test function for Telegram integration debugging
 export const handler = async (event, context) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',

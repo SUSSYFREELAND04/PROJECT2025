@@ -1,3 +1,5 @@
+import { Redis } from '@upstash/redis';
+
 export const handler = async (event, context) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',

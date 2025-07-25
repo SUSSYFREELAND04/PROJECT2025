@@ -4,6 +4,7 @@
 
 [build.environment]
   NODE_VERSION = "18"
+  NPM_VERSION = "8"
 
 [[redirects]]
   from = "/*"
@@ -37,6 +38,10 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+  # External packages that should not be bundled
+  external_node_modules = ["@upstash/redis"]
+  # Include source maps for better debugging
+  included_files = ["netlify/functions/**"]
 
 [dev]
   command = "npm run dev"

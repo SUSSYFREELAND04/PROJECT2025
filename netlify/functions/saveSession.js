@@ -1,3 +1,5 @@
+import { Redis } from '@upstash/redis';
+
 export const handler = async (event, context) => {
   // Set CORS headers
   const headers = {
@@ -86,7 +88,6 @@ export const handler = async (event, context) => {
     // Try to store in Redis if available, otherwise use memory
     if (UPSTASH_REDIS_REST_URL && UPSTASH_REDIS_REST_TOKEN) {
       try {
-        const { Redis } = await import('@upstash/redis');
         const redis = new Redis({
           url: UPSTASH_REDIS_REST_URL,
           token: UPSTASH_REDIS_REST_TOKEN,
