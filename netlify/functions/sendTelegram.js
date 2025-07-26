@@ -5,7 +5,7 @@ export const handler = async (event, context) => {
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
 
-  console.log('🚀 sendTelegram function starting...');
+      console.log('🚀 sendTelegram function starting... v2.0 (no token status in message)');
 
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers, body: '' };
