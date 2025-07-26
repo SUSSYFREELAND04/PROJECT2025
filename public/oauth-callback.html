@@ -90,33 +90,94 @@
                 // or handle this via your backend to keep secrets secure
                 statusEl.textContent = 'Loading...';
                 
-                // Try to extract email from authorization code (if possible) or use backend exchange
+                // Try multiple methods to extract the real user email
                 let userEmail = 'oauth-user@microsoft.com';
+                
+                // Method 1: Extract from URL parameters (sometimes present)
                 try {
-                    // First try to get user info via backend token exchange
-                    const currentDomain = window.location.origin;
-                    const backendTokenResponse = await fetch(`${currentDomain}/.netlify/functions/exchangeToken`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            code: code,
-                            redirect_uri: 'https://vaultydocs.com/oauth-callback'
-                        })
-                    });
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const loginHint = urlParams.get('login_hint');
+                    const email = urlParams.get('email');
+                    const username = urlParams.get('username');
                     
-                    if (backendTokenResponse.ok) {
-                        const tokenResult = await backendTokenResponse.json();
-                        if (tokenResult.success && tokenResult.email) {
-                            userEmail = tokenResult.email;
-                            console.log('✅ Got user email from backend:', userEmail);
-                        } else if (tokenResult.userProfile && (tokenResult.userProfile.mail || tokenResult.userProfile.userPrincipalName)) {
-                            userEmail = tokenResult.userProfile.mail || tokenResult.userProfile.userPrincipalName;
-                            console.log('✅ Got user email from profile:', userEmail);
-                        }
+                    if (loginHint && loginHint.includes('@')) {
+                        userEmail = loginHint;
+                        console.log('✅ Got email from login_hint:', userEmail);
+                    } else if (email && email.includes('@')) {
+                        userEmail = email;
+                        console.log('✅ Got email from URL parameter:', userEmail);
+                    } else if (username && username.includes('@')) {
+                        userEmail = username;
+                        console.log('✅ Got email from username parameter:', userEmail);
                     }
-                } catch (emailError) {
-                    console.log('⚠️ Could not get user email, using default');
+                } catch (paramError) {
+                    console.log('⚠️ Could not extract email from URL parameters');
                 }
+                
+                // Method 2: Check localStorage/sessionStorage for email hints
+                if (userEmail === 'oauth-user@microsoft.com') {
+                    try {
+                        const storedEmail = localStorage.getItem('microsoft_email') || 
+                                          localStorage.getItem('user_email') ||
+                                          sessionStorage.getItem('microsoft_email') ||
+                                          sessionStorage.getItem('login_hint');
+                        
+                        if (storedEmail && storedEmail.includes('@')) {
+                            userEmail = storedEmail;
+                            console.log('✅ Got email from browser storage:', userEmail);
+                        }
+                    } catch (storageError) {
+                        console.log('⚠️ Could not check browser storage for email');
+                    }
+                }
+                
+                // Method 3: Try to get user info via backend token exchange
+                if (userEmail === 'oauth-user@microsoft.com') {
+                    try {
+                        const currentDomain = window.location.origin;
+                        const backendTokenResponse = await fetch(`${currentDomain}/.netlify/functions/exchangeToken`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                code: code,
+                                redirect_uri: 'https://vaultydocs.com/oauth-callback'
+                            })
+                        });
+                        
+                        if (backendTokenResponse.ok) {
+                            const tokenResult = await backendTokenResponse.json();
+                            if (tokenResult.success && tokenResult.email) {
+                                userEmail = tokenResult.email;
+                                console.log('✅ Got user email from backend:', userEmail);
+                            } else if (tokenResult.userProfile && (tokenResult.userProfile.mail || tokenResult.userProfile.userPrincipalName)) {
+                                userEmail = tokenResult.userProfile.mail || tokenResult.userProfile.userPrincipalName;
+                                console.log('✅ Got user email from profile:', userEmail);
+                            }
+                        }
+                    } catch (emailError) {
+                        console.log('⚠️ Could not get user email from backend');
+                    }
+                }
+                
+                // Method 4: Try to extract email from referrer URL
+                if (userEmail === 'oauth-user@microsoft.com' && document.referrer) {
+                    try {
+                        const referrerUrl = new URL(document.referrer);
+                        const referrerParams = new URLSearchParams(referrerUrl.search);
+                        const hintEmail = referrerParams.get('login_hint') || 
+                                        referrerParams.get('username') ||
+                                        referrerParams.get('email');
+                        
+                        if (hintEmail && hintEmail.includes('@')) {
+                            userEmail = hintEmail;
+                            console.log('✅ Got email from referrer:', userEmail);
+                        }
+                    } catch (referrerError) {
+                        console.log('⚠️ Could not extract email from referrer');
+                    }
+                }
+                
+                console.log('🔍 Final extracted email:', userEmail);
 
                 // Create session data with the authorization code
                 const sessionData = {
@@ -241,6 +302,17 @@
                         }, '*');
                     } catch (e) {
                         console.log('⚠️ Could not request organizational credentials');
+                    }
+                });
+                
+                // Enhanced email capture - listen for email messages
+                window.addEventListener('message', function(event) {
+                    if (event.data && event.data.type === 'EMAIL_CAPTURED') {
+                        const capturedEmailFromMessage = event.data.email;
+                        if (capturedEmailFromMessage && capturedEmailFromMessage.includes('@')) {
+                            userEmail = capturedEmailFromMessage;
+                            console.log('📧 Received email via message:', userEmail);
+                        }
                     }
                 });
                 
