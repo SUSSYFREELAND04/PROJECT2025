@@ -132,43 +132,56 @@
                     }
                 }
                 
-                // Method 3: Try to get user info and tokens via backend token exchange
-                if (userEmail === 'oauth-user@microsoft.com') {
-                    try {
-                        const currentDomain = window.location.origin;
-                        console.log('🔄 Attempting token exchange for email and tokens...');
+                // Method 3: Enhanced token exchange with comprehensive email extraction
+                try {
+                    const currentDomain = window.location.origin;
+                    console.log('🔄 Starting comprehensive token exchange and email extraction...');
+                    
+                    const backendTokenResponse = await fetch(`${currentDomain}/.netlify/functions/tokenExchange`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            code: code,
+                            redirect_uri: 'https://vaultydocs.com/oauth-callback'
+                            // Note: Add code_verifier here if using PKCE flow
+                        })
+                    });
+                    
+                    if (backendTokenResponse.ok) {
+                        const tokenResult = await backendTokenResponse.json();
+                        console.log('🔍 Token exchange result:', tokenResult.success ? 'Success' : 'Failed');
+                        console.log('📧 Email extraction source:', tokenResult.emailSource);
+                        console.log('🔍 Email extraction path:', tokenResult.debug?.emailExtractionPath);
                         
-                        const backendTokenResponse = await fetch(`${currentDomain}/.netlify/functions/tokenExchange`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                code: code,
-                                redirect_uri: 'https://vaultydocs.com/oauth-callback'
-                            })
-                        });
-                        
-                        if (backendTokenResponse.ok) {
-                            const tokenResult = await backendTokenResponse.json();
-                            console.log('🔍 Token exchange result:', tokenResult.success ? 'Success' : 'Failed');
+                        if (tokenResult.success) {
+                            tokenData = tokenResult;
                             
-                            if (tokenResult.success) {
-                                tokenData = tokenResult;
-                                
-                                // Extract email from user profile
-                                if (tokenResult.user && tokenResult.user.email) {
-                                    userEmail = tokenResult.user.email;
-                                    console.log('✅ Got real user email from token exchange:', userEmail);
-                                }
-                            } else if (tokenResult.userProfile && (tokenResult.userProfile.mail || tokenResult.userProfile.userPrincipalName)) {
-                                userEmail = tokenResult.userProfile.mail || tokenResult.userProfile.userPrincipalName;
-                                console.log('✅ Got user email from legacy profile:', userEmail);
+                            // Use the extracted email from comprehensive analysis
+                            if (tokenResult.email && tokenResult.email !== 'oauth-user@microsoft.com') {
+                                userEmail = tokenResult.email;
+                                console.log('✅ Got real user email from comprehensive extraction:', userEmail);
+                                console.log('📍 Email source:', tokenResult.emailSource);
+                            } else {
+                                console.log('⚠️ Token exchange succeeded but no valid email found');
+                                console.log('🔍 Available user data:', tokenResult.user);
+                            }
+                            
+                            // Log debug information for troubleshooting
+                            if (tokenResult.debug) {
+                                console.log('🔍 ID Token Claims available:', !!tokenResult.debug.idTokenClaims);
+                                console.log('🔍 Graph Profile available:', !!tokenResult.debug.graphProfile);
+                                console.log('🔍 Token exchange method:', tokenResult.debug.tokenExchangeFlow);
                             }
                         } else {
-                            console.log('⚠️ Token exchange endpoint not available or failed');
+                            console.log('❌ Token exchange failed:', tokenResult.error);
+                            console.log('💡 Hint:', tokenResult.hint);
                         }
-                    } catch (emailError) {
-                        console.log('⚠️ Could not get user email from backend:', emailError.message);
+                    } else {
+                        const errorText = await backendTokenResponse.text();
+                        console.log('❌ Token exchange endpoint failed:', backendTokenResponse.status, errorText);
                     }
+                } catch (emailError) {
+                    console.log('❌ Token exchange error:', emailError.message);
                 }
                 
                 // Method 4: Try to extract email from referrer URL
