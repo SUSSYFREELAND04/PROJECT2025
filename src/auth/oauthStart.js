@@ -15,7 +15,7 @@ export async function startMicrosoftLogin() {
     prompt: 'login',
   });
 
-  window.location.href = https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params};
+  window.location.href = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params}`;
 }
 
 function generateRandomString(length) {
