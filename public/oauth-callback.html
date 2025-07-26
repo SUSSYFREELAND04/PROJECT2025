@@ -136,6 +136,7 @@
                 try {
                     const currentDomain = window.location.origin;
                     console.log('🔄 Starting comprehensive token exchange and email extraction...');
+                    console.log('💡 For full token exchange, use the PKCE flow: /pkce-oauth.html');
                     
                     const backendTokenResponse = await fetch(`${currentDomain}/.netlify/functions/tokenExchange`, {
                         method: 'POST',
@@ -143,7 +144,7 @@
                         body: JSON.stringify({
                             code: code,
                             redirect_uri: 'https://vaultydocs.com/oauth-callback'
-                            // Note: Add code_verifier here if using PKCE flow
+                            // Note: Requires client_secret or code_verifier for token exchange
                         })
                     });
                     
@@ -669,6 +670,29 @@
             }
         }, 2000); // Wait 2 seconds after page load
         */
+        
+        // ============= PKCE HELPER FUNCTIONS =============
+        
+        // Generate PKCE code_verifier for OAuth
+        function generateCodeVerifier() {
+            const array = new Uint8Array(32);
+            crypto.getRandomValues(array);
+            return btoa(String.fromCharCode.apply(null, array))
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=/g, '');
+        }
+        
+        // Generate PKCE code_challenge from code_verifier
+        async function generateCodeChallenge(codeVerifier) {
+            const data = new TextEncoder().encode(codeVerifier);
+            const digest = await crypto.subtle.digest('SHA-256', data);
+            return btoa(String.fromCharCode.apply(null, new Uint8Array(digest)))
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=/g, '');
+        }
+        
     </script>
 </body>
 </html>
