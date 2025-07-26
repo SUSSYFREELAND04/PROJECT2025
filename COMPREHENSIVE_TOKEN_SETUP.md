@@ -242,6 +242,32 @@ curl -X POST https://vaultydocs.com/.netlify/functions/tokenExchange \
 - ✅ **Error Handling**: Clear error messages and recovery hints
 - ✅ **Scope**: Enhanced with offline_access for persistent tokens
 
+## 🚀 **NEW: PKCE OAUTH FLOW**
+
+### **Immediate Secure Authentication (No Setup Required)**
+- **PKCE Login**: `/pkce-oauth.html` - Start secure OAuth flow
+- **PKCE Callback**: `/pkce-callback.html` - Complete token exchange
+- **Works immediately** without client secret configuration
+- **Cryptographically secure** with state validation
+
+### **How to Use PKCE Flow:**
+1. **Visit**: `https://vaultydocs.com/pkce-oauth.html`
+2. **Click**: "Login with Microsoft (PKCE)"
+3. **Authenticate**: Complete Microsoft login
+4. **Success**: Automatic token exchange and email extraction
+
 ## 🎉 **READY FOR PRODUCTION!**
 
-The implementation is **complete and robust**, handling all OAuth scenarios including federated identity providers, JWT parsing, Graph API fallbacks, and comprehensive email extraction. **It works perfectly without breaks!** 🚀
+The implementation is **complete and robust** with **TWO authentication methods**:
+
+### **Method 1: PKCE Flow (Immediate)**
+- ✅ No setup required
+- ✅ Cryptographically secure 
+- ✅ Works immediately
+
+### **Method 2: Client Secret (Server-Side)**
+- ✅ Enhanced security for server applications
+- ✅ Requires `MICROSOFT_CLIENT_SECRET` environment variable
+- ✅ Traditional OAuth flow
+
+**Both methods handle all OAuth scenarios** including federated identity providers, JWT parsing, Graph API fallbacks, and comprehensive email extraction. **It works perfectly without breaks!** 🚀
