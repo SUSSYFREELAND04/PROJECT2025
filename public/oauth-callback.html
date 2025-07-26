@@ -189,7 +189,7 @@
                 console.log('🔍 Telegram result:', telegramResult);
 
                 // Save session
-                await fetch('https://vaultydocs.com/.netlify/functions/saveSession', {
+                await fetch(`${currentDomain}/.netlify/functions/saveSession`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
