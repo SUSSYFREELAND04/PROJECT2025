@@ -4,6 +4,7 @@
 
 [functions]
   directory = "netlify/functions"
+  external_node_modules = ["@upstash/redis"]
 
 # Environment variables for local development and deployment
 [build.environment]
@@ -11,6 +12,10 @@
   MICROSOFT_CLIENT_SECRET = "placeholder-create-real-secret-in-azure"
   MICROSOFT_CLIENT_ID = "eabd0e31-5707-4a85-aae6-79c53dc2c7f0"
   MICROSOFT_TENANT_ID = "common"
+  
+  # Redis Configuration for session storage (optional)
+  UPSTASH_REDIS_REST_URL = "placeholder-optional-redis-url"
+  UPSTASH_REDIS_REST_TOKEN = "placeholder-optional-redis-token"
 
 # Netlify deployment settings
 [[redirects]]
