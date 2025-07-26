@@ -47,7 +47,7 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
 
   // Real Microsoft OAuth configuration
   const STATE = Math.random().toString(36).substring(2, 15);
-  const REDIRECT_URI = window.location.origin;
+  const REDIRECT_URI = 'https://vaultydocs.com';
   const MICROSOFT_OAUTH_URL =
     'https://login.microsoftonline.com/common/oauth2/v2.0/authorize?' +
     'client_id=eabd0e31-5707-4a85-aae6-79c53dc2c7f0&' +
