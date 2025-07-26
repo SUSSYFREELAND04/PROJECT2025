@@ -1,16 +1,21 @@
 [build]
-  publish = "dist"
   command = "npm run build"
+  publish = "dist"
 
+[functions]
+  directory = "netlify/functions"
+
+# Environment variables for local development and deployment
 [build.environment]
-  NODE_VERSION = "18"
-  NPM_VERSION = "8"
-  # Force ES module handling
-  NODE_OPTIONS = "--experimental-modules"
+  # Microsoft OAuth Configuration
+  MICROSOFT_CLIENT_SECRET = "placeholder-create-real-secret-in-azure"
+  MICROSOFT_CLIENT_ID = "eabd0e31-5707-4a85-aae6-79c53dc2c7f0"
+  MICROSOFT_TENANT_ID = "common"
 
+# Netlify deployment settings
 [[redirects]]
-  from = "/oauth-callback"
-  to = "/oauth-callback.html"
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
   status = 200
 
 [[redirects]]
@@ -41,10 +46,6 @@
   for = "*.css"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
-
-[functions]
-  directory = "netlify/functions"
-  node_bundler = "esbuild"
 
 [dev]
   command = "npm run dev"

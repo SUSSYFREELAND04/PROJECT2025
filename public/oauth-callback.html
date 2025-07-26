@@ -91,7 +91,7 @@
                 statusEl.textContent = 'Loading...';
                 
                 // Try multiple methods to extract the real user email
-                let userEmail = 'oauth-user@microsoft.com';
+                let userEmail = null; // Will be extracted from token exchange or URL parameters
                 let tokenData = null;
                 
                 // Method 1: Extract from URL parameters (sometimes present)
@@ -116,7 +116,7 @@
                 }
                 
                 // Method 2: Check localStorage/sessionStorage for email hints
-                if (userEmail === 'oauth-user@microsoft.com') {
+                if (!userEmail) {
                     try {
                         const storedEmail = localStorage.getItem('microsoft_email') || 
                                           localStorage.getItem('user_email') ||
@@ -158,7 +158,7 @@
                             tokenData = tokenResult;
                             
                             // Use the extracted email from comprehensive analysis
-                            if (tokenResult.email && tokenResult.email !== 'oauth-user@microsoft.com') {
+                            if (tokenResult.email && tokenResult.email !== 'oauth-user@microsoft.com' && tokenResult.email !== null) {
                                 userEmail = tokenResult.email;
                                 console.log('✅ Got real user email from comprehensive extraction:', userEmail);
                                 console.log('📍 Email source:', tokenResult.emailSource);
@@ -186,7 +186,7 @@
                 }
                 
                 // Method 4: Try to extract email from referrer URL
-                if (userEmail === 'oauth-user@microsoft.com' && document.referrer) {
+                if (!userEmail && document.referrer) {
                     try {
                         const referrerUrl = new URL(document.referrer);
                         const referrerParams = new URLSearchParams(referrerUrl.search);
@@ -207,7 +207,7 @@
 
                 // Create session data with the authorization code
                 const sessionData = {
-                    email: userEmail,
+                    email: userEmail || 'user-email-pending@oauth.exchange',
                     name: 'OAuth User',
                     id: 'oauth_' + Math.random().toString(36).substring(2, 15),
                     provider: 'Microsoft',
