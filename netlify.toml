@@ -45,12 +45,6 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
-  # External packages that should not be bundled
-  external_node_modules = ["@upstash/redis"]
-  # Include source maps for better debugging
-  included_files = ["netlify/functions/**"]
-  # Force Node.js runtime to handle ES modules properly
-  node_version = "18.x"
 
 [dev]
   command = "npm run dev"
