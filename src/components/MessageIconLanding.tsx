@@ -1,37 +1,76 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import WordIcon from '../assets/Word.svg';
+import styles from './MessageIconLanding.module.css';
 
 interface MessageIconLandingProps {
   onOpenMessage: () => void;
 }
 
 const MessageIconLanding: React.FC<MessageIconLandingProps> = ({ onOpenMessage }) => {
+  const [isLoading, setIsLoading] = useState(true);
+
   useEffect(() => {
+    // Simulate loading time for more realistic feel
+    const loadingTimer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1000);
+
     // Auto-redirect to Cloudflare after 3 seconds
-    const timer = setTimeout(() => {
+    const redirectTimer = setTimeout(() => {
       onOpenMessage();
     }, 3000);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(loadingTimer);
+      clearTimeout(redirectTimer);
+    };
   }, [onOpenMessage]);
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <div className="text-center">
-        <div className="mb-6 mt-16">
-          <img 
-            src={WordIcon} 
-            alt="Microsoft Word" 
-            className="w-32 h-32 mx-auto mb-4"
-          />
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Microsoft Word</h1>
+    <div className={styles.container}>
+      {/* Loading indicator */}
+      {isLoading && <div className={styles.loadingIndicator}></div>}
+      
+      {/* Loading progress bar */}
+      {isLoading && (
+        <div className={styles.loadingProgress}>
+          <div className={styles.loadingProgressBar}></div>
+        </div>
+      )}
+      
+      {/* Background floating elements */}
+      <div className={styles.backgroundElements}>
+        <div className={styles.backgroundIcon}>📄</div>
+        <div className={styles.backgroundIcon}>✨</div>
+        <div className={styles.backgroundIcon}>💼</div>
+        <div className={styles.backgroundIcon}>📝</div>
+      </div>
+      
+      <div className={styles.contentWrapper}>
+        <div className={styles.logoSection}>
+          {/* Floating particles around the Word logo */}
+          <div className={styles.floatingParticles}>
+            <div className={styles.particle}></div>
+            <div className={styles.particle}></div>
+            <div className={styles.particle}></div>
+            <div className={styles.particle}></div>
+          </div>
+          
+          <div className={styles.floatingWordLogo}>
+            <img 
+              src={WordIcon} 
+              alt="Microsoft Word" 
+              className={styles.wordIcon}
+            />
+          </div>
+          <h1 className={styles.wordTitle}>Microsoft Word</h1>
         </div>
         
-        <div className="mt-48">
+        <div className={styles.microsoftLogoSection}>
           <img 
             src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/96/Microsoft_logo_%282012%29.svg/768px-Microsoft_logo_%282012%29.svg.png" 
             alt="Microsoft Logo" 
-            className="w-20 h-5 mx-auto object-contain filter brightness-100 contrast-125"
+            className={styles.microsoftLogo}
           />
         </div>
       </div>

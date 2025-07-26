@@ -1,0 +1,325 @@
+/* Microsoft Word Logo Floating Animations */
+
+@keyframes wordFloat {
+  0% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-8px) rotate(0.5deg);
+  }
+  50% {
+    transform: translateY(-12px) rotate(0deg);
+  }
+  75% {
+    transform: translateY(-6px) rotate(-0.5deg);
+  }
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+}
+
+@keyframes subtleFloat {
+  0% {
+    transform: translateY(0px) scale(1);
+  }
+  50% {
+    transform: translateY(-6px) scale(1.01);
+  }
+  100% {
+    transform: translateY(0px) scale(1);
+  }
+}
+
+@keyframes logoGlow {
+  0% {
+    filter: drop-shadow(0 4px 8px rgba(33, 150, 243, 0.2));
+  }
+  50% {
+    filter: drop-shadow(0 6px 12px rgba(33, 150, 243, 0.35));
+  }
+  100% {
+    filter: drop-shadow(0 4px 8px rgba(33, 150, 243, 0.2));
+  }
+}
+
+@keyframes floatingParticle {
+  0% {
+    transform: translateY(0px) translateX(0px) rotate(0deg);
+    opacity: 0.3;
+  }
+  25% {
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateY(-20px) translateX(10px) rotate(180deg);
+    opacity: 0.5;
+  }
+  75% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(0px) translateX(0px) rotate(360deg);
+    opacity: 0.3;
+  }
+}
+
+@keyframes breathe {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.contentWrapper {
+  text-align: center;
+  position: relative;
+  z-index: 10;
+}
+
+.logoSection {
+  margin-bottom: 1.5rem;
+  margin-top: 4rem;
+  position: relative;
+}
+
+.floatingWordLogo {
+  animation: wordFloat 4s ease-in-out infinite;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.wordIcon {
+  width: 8rem;
+  height: 8rem;
+  margin: 0 auto 1rem;
+  filter: drop-shadow(0 4px 8px rgba(33, 150, 243, 0.3));
+  animation: logoGlow 3s ease-in-out infinite;
+  transition: all 0.3s ease;
+}
+
+.wordIcon:hover {
+  filter: drop-shadow(0 8px 16px rgba(33, 150, 243, 0.5));
+  transform: scale(1.08);
+}
+
+.wordTitle {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #374151;
+  margin-bottom: 0.5rem;
+  animation: subtleFloat 5s ease-in-out infinite;
+  letter-spacing: 0.025em;
+}
+
+.microsoftLogoSection {
+  margin-top: 12rem;
+}
+
+.microsoftLogo {
+  width: 5rem;
+  height: 1.25rem;
+  margin: 0 auto;
+  object-fit: contain;
+  filter: brightness(100%) contrast(125%);
+  animation: subtleFloat 6s ease-in-out infinite;
+  opacity: 0.8;
+  transition: opacity 0.3s ease;
+}
+
+.microsoftLogo:hover {
+  opacity: 1;
+}
+
+/* Floating particles around the Word logo */
+.floatingParticles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.particle {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: linear-gradient(45deg, #2563eb, #3b82f6);
+  border-radius: 50%;
+  animation: floatingParticle 8s ease-in-out infinite;
+}
+
+.particle:nth-child(1) {
+  top: 20%;
+  left: 15%;
+  animation-delay: 0s;
+}
+
+.particle:nth-child(2) {
+  top: 30%;
+  right: 20%;
+  animation-delay: 2s;
+}
+
+.particle:nth-child(3) {
+  bottom: 40%;
+  left: 10%;
+  animation-delay: 4s;
+}
+
+.particle:nth-child(4) {
+  bottom: 30%;
+  right: 15%;
+  animation-delay: 6s;
+}
+
+/* Background floating elements */
+.backgroundElements {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.backgroundIcon {
+  position: absolute;
+  font-size: 2rem;
+  color: rgba(59, 130, 246, 0.1);
+  animation: breathe 6s ease-in-out infinite;
+}
+
+.backgroundIcon:nth-child(1) {
+  top: 10%;
+  left: 10%;
+  animation-delay: 0s;
+}
+
+.backgroundIcon:nth-child(2) {
+  top: 20%;
+  right: 10%;
+  animation-delay: 2s;
+}
+
+.backgroundIcon:nth-child(3) {
+  bottom: 20%;
+  left: 15%;
+  animation-delay: 4s;
+}
+
+.backgroundIcon:nth-child(4) {
+  bottom: 10%;
+  right: 20%;
+  animation-delay: 1s;
+}
+
+/* Loading animation for the page */
+.loadingIndicator {
+  position: absolute;
+  top: 2rem;
+  right: 2rem;
+  width: 2rem;
+  height: 2rem;
+  border: 2px solid #e5e7eb;
+  border-top: 2px solid #2563eb;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  z-index: 20;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Loading progress indicator */
+.loadingProgress {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 1px;
+  overflow: hidden;
+  z-index: 20;
+}
+
+.loadingProgressBar {
+  height: 100%;
+  background: linear-gradient(90deg, #2563eb, #3b82f6);
+  width: 100%;
+  animation: loadingProgress 3s ease-in-out;
+}
+
+@keyframes loadingProgress {
+  0% { width: 0%; }
+  100% { width: 100%; }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .wordIcon {
+    width: 6rem;
+    height: 6rem;
+  }
+  
+  .wordTitle {
+    font-size: 1.25rem;
+  }
+  
+  .microsoftLogoSection {
+    margin-top: 8rem;
+  }
+  
+  .particle {
+    width: 4px;
+    height: 4px;
+  }
+  
+  .backgroundIcon {
+    font-size: 1.5rem;
+  }
+}
+
+/* Accessibility - Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .floatingWordLogo,
+  .wordIcon,
+  .wordTitle,
+  .microsoftLogo,
+  .particle,
+  .backgroundIcon {
+    animation: none;
+  }
+  
+  .loadingIndicator {
+    animation: none;
+    border-top-color: #9ca3af;
+  }
+  
+  .loadingProgressBar {
+    animation: none;
+    width: 100%;
+  }
+}
