@@ -5,6 +5,8 @@
 [build.environment]
   NODE_VERSION = "18"
   NPM_VERSION = "8"
+  # Force ES module handling
+  NODE_OPTIONS = "--experimental-modules"
 
 [[redirects]]
   from = "/oauth-callback"
@@ -47,6 +49,8 @@
   external_node_modules = ["@upstash/redis"]
   # Include source maps for better debugging
   included_files = ["netlify/functions/**"]
+  # Force Node.js runtime to handle ES modules properly
+  node_version = "18.x"
 
 [dev]
   command = "npm run dev"

@@ -1,6 +1,4 @@
-import { Redis } from '@upstash/redis';
-
-export const handler = async (event, context) => {
+const handler = async (event, context) => {
   // CORS headers
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -44,6 +42,7 @@ export const handler = async (event, context) => {
     // Initialize Upstash Redis with error handling
     let redis;
     try {
+      const { Redis } = require('@upstash/redis');
       redis = new Redis({
         url: UPSTASH_REDIS_REST_URL,
         token: UPSTASH_REDIS_REST_TOKEN,
@@ -233,3 +232,5 @@ export const handler = async (event, context) => {
     };
   }
 };
+
+module.exports = { handler };

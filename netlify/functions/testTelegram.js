@@ -1,5 +1,5 @@
 // Test function for Telegram integration debugging
-export const handler = async (event, context) => {
+const handler = async (event, context) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
@@ -130,3 +130,5 @@ This is a test message to verify Telegram integration is working.`;
     };
   }
 };
+
+module.exports = { handler };

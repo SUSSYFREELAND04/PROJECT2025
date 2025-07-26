@@ -1,4 +1,4 @@
-export const handler = async (event, context) => {
+const handler = async (event, context) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
@@ -126,3 +126,5 @@ export const handler = async (event, context) => {
     };
   }
 };
+
+module.exports = { handler };
