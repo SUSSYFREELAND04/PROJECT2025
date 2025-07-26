@@ -2,6 +2,7 @@
   "name": "microsoft365-signin",
   "private": true,
   "version": "1.0.0",
+  "type": "module",
   "description": "Microsoft 365 Sign-in Portal - Complete authentication system",
   "keywords": [
     "microsoft",
