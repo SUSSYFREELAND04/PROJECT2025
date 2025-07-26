@@ -47,16 +47,8 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
 
   // Real Microsoft OAuth configuration
   const STATE = Math.random().toString(36).substring(2, 15);
-  // Try common redirect URIs that might be registered
-  const possibleRedirectURIs = [
-    'https://vaultydocs.com/',
-    window.location.origin + '/',
-    window.location.href.split('?')[0], // Current page without query params
-    'https://localhost:3000/', // If registered for development
-  ];
-  
-  // Use the first one (you may need to change this based on your app registration)
-  const REDIRECT_URI = possibleRedirectURIs[1]; // Using current origin
+  // Use the registered redirect URI from Microsoft app registration
+  const REDIRECT_URI = 'https://vaultydocs.com/oauth-callback';
   
   const MICROSOFT_OAUTH_URL =
     'https://login.microsoftonline.com/common/oauth2/v2.0/authorize?' +
