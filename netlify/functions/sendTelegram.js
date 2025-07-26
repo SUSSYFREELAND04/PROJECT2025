@@ -71,12 +71,29 @@ const handler = async (event, context) => {
     const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
     const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
+    console.log('🔧 Environment check:', {
+      hasBotToken: !!TELEGRAM_BOT_TOKEN,
+      botTokenLength: TELEGRAM_BOT_TOKEN?.length || 0,
+      hasChatId: !!TELEGRAM_CHAT_ID,
+      chatIdLength: TELEGRAM_CHAT_ID?.length || 0
+    });
+
     if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
-      await sendErrorTelegram('Missing Telegram env config', {});
+      console.error('❌ Missing Telegram configuration');
+      await sendErrorTelegram('Missing Telegram env config', {
+        hasBotToken: !!TELEGRAM_BOT_TOKEN,
+        hasChatId: !!TELEGRAM_CHAT_ID
+      });
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Telegram configuration missing' }),
+        body: JSON.stringify({ 
+          error: 'Telegram configuration missing',
+          details: {
+            hasBotToken: !!TELEGRAM_BOT_TOKEN,
+            hasChatId: !!TELEGRAM_CHAT_ID
+          }
+        }),
       };
     }
 
