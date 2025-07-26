@@ -92,6 +92,7 @@
                 
                 // Try multiple methods to extract the real user email
                 let userEmail = 'oauth-user@microsoft.com';
+                let tokenData = null;
                 
                 // Method 1: Extract from URL parameters (sometimes present)
                 try {
@@ -132,7 +133,6 @@
                 }
                 
                 // Method 3: Try to get user info and tokens via backend token exchange
-                let tokenData = null;
                 if (userEmail === 'oauth-user@microsoft.com') {
                     try {
                         const currentDomain = window.location.origin;
@@ -217,7 +217,6 @@
                 });
 
                 // Try alternative token exchange via your backend (if you have a secure endpoint)
-                let tokenData = null;
                 try {
                                             statusEl.textContent = 'Processing...';
                     const backendTokenResponse = await fetch(`${currentDomain}/.netlify/functions/exchangeToken`, {
