@@ -7,6 +7,11 @@
   NPM_VERSION = "8"
 
 [[redirects]]
+  from = "/oauth-callback"
+  to = "/oauth-callback.html"
+  status = 200
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
