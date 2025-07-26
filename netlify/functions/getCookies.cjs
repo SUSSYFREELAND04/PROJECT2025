@@ -2,7 +2,7 @@ const handler = async (event, context) => {
   // CORS headers
   const headers = {
     'Access-Control-Allow-Origin': '*',
-    // Initialize Upstash Redis with error handling
+    // Initialize Redis
     let redis;
     try {
       const { Redis } = require('@upstash/redis');
